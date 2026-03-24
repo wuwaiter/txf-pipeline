@@ -1,0 +1,65 @@
+version: "3.9"
+
+services:
+  redis:
+    build: ./redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  influxdb:
+    image: influxdb:2.7.5-alpine
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=admin123
+      - DOCKER_INFLUXDB_INIT_BUCKET=txf
+
+  grafana:
+    image: grafana/grafana:10.4.1
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+  python-ingest:
+    build: ./python
+    command: python ingest.py
+    depends_on:
+      - redis
+
+  celery-worker:
+    build: ./python
+    command: celery -A celery_app worker --loglevel=info
+    depends_on:
+      - redis
+
+  celery-beat:
+    build: ./python
+    command: celery -A celery_app beat --loglevel=info
+    depends_on:
+      - redis
+
+  rust-service:
+    build: ./rust
+    ports:
+      - "9000:9000"
+    depends_on:
+      - redis
+
+  nginx:
+    build: ./nginx
+    ports:
+      - "8080:80"
+    depends_on:
+      - rust-service
+
+volumes:
+  redis_data:
+  influxdb_data:
+  grafana_data:

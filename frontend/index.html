@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+
+<body>
+
+    <div id="chart" style="height:500px"></div>
+
+    <script>
+        const chart = LightweightCharts.createChart(document.getElementById('chart'));
+        const series = chart.addCandlestickSeries();
+
+        const ws = new WebSocket("ws://localhost:9000/ws");
+
+        let candles = [];
+
+        ws.onmessage = e => {
+            const t = JSON.parse(e.data);
+            const time = Math.floor(t.ts);
+
+            let last = candles[candles.length - 1];
+
+            if (!last || time - last.time >= 60) {
+                candles.push({
+                    time,
+                    open: t.price,
+                    high: t.price,
+                    low: t.price,
+                    close: t.price
+                });
+            } else {
+                last.high = Math.max(last.high, t.price);
+                last.low = Math.min(last.low, t.price);
+                last.close = t.price;
+            }
+
+            series.setData(candles);
+        };
+    </script>
+
+</body>
+
+</html>
