@@ -8,6 +8,7 @@ services:
     volumes:
       - redis_data:/data
 
+
   influxdb:
     image: influxdb:2.7.5-alpine
     ports:
@@ -23,6 +24,7 @@ services:
       - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG}
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_INIT_ADMIN_TOKEN}
 
+
   grafana:
     image: grafana/grafana:10.4.2
     ports:
@@ -34,6 +36,7 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+
 
   x-python-base: &python-base
     build:
@@ -67,6 +70,7 @@ services:
       - "8080:8080"
     depends_on:
       - redis
+
 
 volumes:
   redis_data:
