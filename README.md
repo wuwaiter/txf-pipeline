@@ -1,33 +1,30 @@
-# TXF Pipeline 專案說明文件
+# TXF Pipeline
 
-本專案是一個用來接收、處理、儲存與展示「台指期 (TXF)」即時報價與 K 線圖的完整資料管線 (Data Pipeline) 系統。本系統採用微型服務架構，將各項功能拆分為不同的容器 (Docker Container) 協同運作。
+台指期 (TXF) 即時報價與 K 線圖資料管線系統，採用微服務架構，透過 Docker Compose 統一管理所有服務。
 
 ## 系統架構圖 (架構與流程)
 
 ```mermaid
 graph TD
-    %% Define Nodes
-    Shioaji[Sinopac API <br> Shioaji] 
-    Ingest(Python Ingest)
-    Redis[(Redis Stream <br> tick:txf)]
-    RustWS[Rust WebSocket <br> Service]
-    Frontend[Frontend <br> Nginx :80]
-    Worker(Python Celery Worker)
-    Beat(Python Celery Beat)
-    Influx[(InfluxDB <br> :8086)]
-    Grafana[Grafana <br> :3000]
+    Shioaji[Sinopac API\nShioaji]
+    Ingest(python-ingest\ncollector.py)
+    Redis[(Redis Stream\ntick:txf)]
+    Flask[flask-web\nmain.py :8080]
+    Frontend[Browser\nLightweight Charts]
+    Worker(celery-worker\ncollector.py)
+    Beat(celery-beat\ncollector.py)
+    Influx[(InfluxDB :8086)]
+    Grafana[Grafana :3000]
 
-    %% Real-time Flow
-    Shioaji -->|即時 Tick 報價| Ingest
-    Ingest -->|寫入| Redis
-    Redis -->|查詢最新 Tick <br> XREVRANGE| RustWS
-    Frontend <-->|WebSocket 連線 <br> ws://localhost:9000| RustWS
+    Shioaji -->|即時 Tick| Ingest
+    Ingest -->|xadd| Redis
+    Redis -->|xrevrange| Flask
+    Flask <-->|WebSocket /ws| Frontend
 
-    %% Historical/Aggregation Flow
     Beat -.->|定時派發 1m/5m/60m| Worker
-    Worker -->|取出區間資料 <br> 計算 OHLC| Redis
-    Worker -->|寫入各週期 K 線| Influx
-    Grafana -->|查詢歷史資料與圖表| Influx
+    Worker -->|xrange OHLC| Redis
+    Worker -->|write| Influx
+    Grafana -->|query| Influx
 ```
 
 1. **報價接收 (Python Ingest)**: 透過永豐金證券 Shioaji API，以模擬模式訂閱台指期 (TXF) 的即時 Tick 報價資料。接收到最新一筆報價後，會打入 Redis Stream `tick:txf` 中。
@@ -77,10 +74,45 @@ graph TD
 2. 進入專案根目錄 (即 `docker-compose.yml` 所在位置)。
 3. 在 `python/ingest.py` 內將 `api.login("API_KEY", "SECRET_KEY")` 換成您能合法使用的 Shioaji API Key 憑證 (現為模擬模式 `simulation=True`)。
 4. 執行命令啟動所有服務：
-   ```bash
-   docker-compose up -d --build
-   ```
-5. **預期結果：**
-   - 前端即時 K 線圖: 開啟瀏覽器訪問 `http://localhost:8080`。
-   - Grafana 面板: 開啟瀏覽器訪問 `http://localhost:3000`。
-   - InfluxDB 控制台: 開啟瀏覽器訪問 `http://localhost:8086` (帳號：admin / 密碼：admin123)。
+```bash
+docker-compose up -d --build
+```
+
+### 4. 存取服務
+
+| 服務 | 網址 |
+|---|---|
+| 即時 K 線前端 | http://localhost:8080 |
+| Grafana 儀表板 | http://localhost:3000 |
+| InfluxDB 控制台 | http://localhost:8086 |
+
+> **Grafana 預設帳號**：admin / admin123  
+> **InfluxDB 預設帳號**：admin / admin123
+
+## 開發
+
+安裝開發依賴：
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+```
+
+執行測試：
+
+```bash
+pytest tests/
+```
+
+## 技術棧
+
+| 類別 | 技術 |
+|---|---|
+| 語言 | Python 3.11 |
+| Web 框架 | Flask + flask-sock (WebSocket) |
+| 排程 | Celery + Redis Broker |
+| 報價 API | Sinopac Shioaji |
+| 快取 / 佇列 | Redis Stream |
+| 時序資料庫 | InfluxDB 2.x |
+| 視覺化 | Grafana |
+| 前端圖表 | TradingView Lightweight Charts |
+| 容器化 | Docker + Docker Compose |

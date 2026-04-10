@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  influxdb:
+    image: influxdb:2.7.5-alpine
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - ./config/influxdb/influxdb.conf:/etc/influxdb2/config.yml
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_INIT_USERNAME}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_INIT_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_INIT_ADMIN_TOKEN}
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+      - ./config/grafana/dashboards:/etc/grafana/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+
+  x-python-base: &python-base
+    build:
+      context: .
+      dockerfile: docker/python/Dockerfile
+    env_file:
+      - .env
+
+  python-ingest:
+    <<: *python-base
+    command: python -m app.workers.collector
+    depends_on:
+      - redis
+
+  celery-worker:
+    <<: *python-base
+    command: celery -A app.workers.collector.celery_app worker --loglevel=info
+    depends_on:
+      - redis
+
+  celery-beat:
+    <<: *python-base
+    command: celery -A app.workers.collector.celery_app beat --loglevel=info
+    depends_on:
+      - redis
+
+  flask-web:
+    <<: *python-base
+    command: python -m app.main
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+
+volumes:
+  redis_data:
+  influxdb_data:
+  grafana_data:

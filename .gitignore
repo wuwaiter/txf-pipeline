@@ -12,6 +12,7 @@ env/
 .venv/
 ENV/
 
+
 # Celery 排程相關
 celerybeat-schedule
 celerybeat.pid
@@ -30,6 +31,8 @@ config.py
 secrets.py
 .env
 .env.*
+config.toml
+pyproject.toml
 
 # ========================
 # 憑證與私鑰

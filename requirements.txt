@@ -1,0 +1,8 @@
+﻿shioaji
+redis
+celery
+influxdb-client
+flask
+flask-sock
+python-dotenv
+tomli
