@@ -1,47 +1,566 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="zh-TW">
 <head>
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-</head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TXF Pipeline — 即時報價看板</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    :root {
+      --bg-0: #0b0e17;
+      --bg-1: #111520;
+      --bg-2: #181d2e;
+      --bg-3: #1f2640;
+      --accent: #3b82f6;
+      --accent-glow: rgba(59,130,246,.25);
+      --green: #22c55e;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --text-1: #f0f4ff;
+      --text-2: #94a3b8;
+      --text-3: #64748b;
+      --border: rgba(255,255,255,.07);
+      --radius: 12px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-0);
+      color: var(--text-1);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
 
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 28px;
+      background: var(--bg-1);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      letter-spacing: .02em;
+    }
+    .logo-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .6; transform: scale(.85); }
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .8rem;
+      color: var(--text-2);
+      padding: 5px 12px;
+      background: var(--bg-2);
+      border-radius: 20px;
+      border: 1px solid var(--border);
+    }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--text-3);
+      transition: background .3s, box-shadow .3s;
+    }
+    .status-dot.connected { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .status-dot.error { background: var(--red); box-shadow: 0 0 8px var(--red); }
+    #clock {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .85rem;
+      color: var(--text-2);
+    }
+
+    /* ── Main layout ── */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      grid-template-rows: 1fr;
+      gap: 0;
+      max-height: calc(100vh - 57px);
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    aside {
+      background: var(--bg-1);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    .sidebar-title {
+      padding: 16px 20px 10px;
+      font-size: .7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--text-3);
+    }
+    .contract-card {
+      margin: 4px 10px;
+      padding: 12px 14px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+      border: 1px solid transparent;
+      position: relative;
+      overflow: hidden;
+    }
+    .contract-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, var(--accent-glow), transparent);
+      opacity: 0;
+      transition: opacity .2s;
+    }
+    .contract-card:hover::before { opacity: .5; }
+    .contract-card.active {
+      background: var(--bg-3);
+      border-color: var(--accent);
+    }
+    .contract-card.active::before { opacity: 1; }
+    .cc-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .cc-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .9rem;
+      font-weight: 600;
+    }
+    .cc-market {
+      font-size: .65rem;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: var(--bg-3);
+      color: var(--text-3);
+      text-transform: uppercase;
+    }
+    .cc-price {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: .02em;
+      line-height: 1;
+    }
+    .cc-change {
+      font-size: .75rem;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .up { color: var(--green); }
+    .dn { color: var(--red); }
+    .flash-up { animation: flash-green .4s ease; }
+    .flash-dn { animation: flash-red .4s ease; }
+    @keyframes flash-green { 0% { background: rgba(34,197,94,.3); } 100% { background: transparent; } }
+    @keyframes flash-red   { 0% { background: rgba(239,68,68,.3); }  100% { background: transparent; } }
+
+    /* ── Chart area ── */
+    .chart-area {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg-0);
+    }
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-1);
+    }
+    .chart-title-row {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+    }
+    #selected-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+    #selected-price {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2rem;
+      font-weight: 700;
+    }
+    #selected-change {
+      font-size: .9rem;
+      font-weight: 500;
+    }
+    .timeframe-btns {
+      display: flex;
+      gap: 6px;
+    }
+    .tf-btn {
+      padding: 5px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-2);
+      font-size: .8rem;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: all .15s;
+    }
+    .tf-btn:hover { background: var(--bg-3); color: var(--text-1); }
+    .tf-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    #chart-container {
+      flex: 1;
+      position: relative;
+      min-height: 0;
+    }
+    #chart {
+      width: 100%;
+      height: 100%;
+    }
+    .no-data-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--text-3);
+      pointer-events: none;
+    }
+    .no-data-overlay svg { opacity: .3; }
+    .no-data-overlay p { font-size: .9rem; }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+      display: flex;
+      gap: 0;
+      border-top: 1px solid var(--border);
+      background: var(--bg-1);
+    }
+    .stat-item {
+      flex: 1;
+      padding: 10px 18px;
+      border-right: 1px solid var(--border);
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-label {
+      font-size: .68rem;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      margin-bottom: 3px;
+    }
+    .stat-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .95rem;
+      font-weight: 600;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 4px; }
+  </style>
+</head>
 <body>
 
-    <div id="chart" style="height:500px"></div>
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    TXF Pipeline
+  </div>
+  <div class="header-right">
+    <div class="status-badge">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">連線中…</span>
+    </div>
+    <div id="clock">--:--:--</div>
+  </div>
+</header>
 
-    <script>
-        const chart = LightweightCharts.createChart(document.getElementById('chart'));
-        const series = chart.addCandlestickSeries();
+<main>
+  <aside>
+    <div class="sidebar-title">期貨 / 股票</div>
+    <div id="contract-list"></div>
+  </aside>
 
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+  <div class="chart-area">
+    <div class="chart-header">
+      <div class="chart-title-row">
+        <span id="selected-code" style="color:var(--text-2)">— 選擇合約 —</span>
+        <span id="selected-price" style="color:var(--text-2)">—</span>
+        <span id="selected-change"></span>
+      </div>
+      <div class="timeframe-btns">
+        <button class="tf-btn active" data-tf="60" id="tf-1m">1m</button>
+        <button class="tf-btn" data-tf="300" id="tf-5m">5m</button>
+        <button class="tf-btn" data-tf="3600" id="tf-60m">60m</button>
+      </div>
+    </div>
 
-        let candles = [];
+    <div id="chart-container">
+      <div id="chart"></div>
+      <div class="no-data-overlay" id="no-data">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M3 3l18 18M9 9v11m6-6v6M3 13l4-4 4 4 4-8 4 4"/>
+        </svg>
+        <p>等待即時報價資料…</p>
+      </div>
+    </div>
 
-        ws.onmessage = e => {
-            const t = JSON.parse(e.data);
-            const time = Math.floor(t.ts);
+    <div class="stats-bar">
+      <div class="stat-item">
+        <div class="stat-label">開盤 Open</div>
+        <div class="stat-value" id="stat-open">—</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">最高 High</div>
+        <div class="stat-value up" id="stat-high">—</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">最低 Low</div>
+        <div class="stat-value dn" id="stat-low">—</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">最新 Last</div>
+        <div class="stat-value" id="stat-last">—</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">最新 Tick 時間</div>
+        <div class="stat-value" id="stat-time" style="font-size:.8rem">—</div>
+      </div>
+    </div>
+  </div>
+</main>
 
-            let last = candles[candles.length - 1];
+<script>
+  // ── State ────────────────────────────────────────────────────────
+  const state = {
+    contracts: {},   // code -> { market, price, prevPrice, firstPrice }
+    selected: null,
+    tf: 60,          // timeframe in seconds
+    candles: {},     // code:tf -> [{ time, open, high, low, close }]
+  };
 
-            if (!last || time - last.time >= 60) {
-                candles.push({
-                    time,
-                    open: t.price,
-                    high: t.price,
-                    low: t.price,
-                    close: t.price
-                });
-            } else {
-                last.high = Math.max(last.high, t.price);
-                last.low = Math.min(last.low, t.price);
-                last.close = t.price;
-            }
+  // ── Chart ────────────────────────────────────────────────────────
+  const chartEl = document.getElementById('chart');
+  const chart = LightweightCharts.createChart(chartEl, {
+    layout: { background: { color: '#0b0e17' }, textColor: '#94a3b8' },
+    grid: { vertLines: { color: 'rgba(255,255,255,.04)' }, horzLines: { color: 'rgba(255,255,255,.04)' } },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: 'rgba(255,255,255,.07)' },
+    timeScale: { borderColor: 'rgba(255,255,255,.07)', timeVisible: true, secondsVisible: false },
+    handleScroll: true,
+    handleScale: true,
+  });
+  const candleSeries = chart.addCandlestickSeries({
+    upColor: '#22c55e', downColor: '#ef4444',
+    borderUpColor: '#22c55e', borderDownColor: '#ef4444',
+    wickUpColor: '#22c55e', wickDownColor: '#ef4444',
+  });
 
-            series.setData(candles);
-        };
-    </script>
+  // Resize observer
+  const ro = new ResizeObserver(() => {
+    const rect = chartEl.parentElement.getBoundingClientRect();
+    chart.applyOptions({ width: rect.width, height: rect.height });
+  });
+  ro.observe(chartEl.parentElement);
 
+  // ── Clock ────────────────────────────────────────────────────────
+  setInterval(() => {
+    document.getElementById('clock').textContent =
+      new Date().toLocaleTimeString('zh-TW', { hour12: false });
+  }, 1000);
+
+  // ── Candle helpers ───────────────────────────────────────────────
+  function candleKey(code) { return `${code}:${state.tf}`; }
+
+  function updateCandle(code, price, ts) {
+    const key = candleKey(code);
+    if (!state.candles[key]) state.candles[key] = [];
+    const arr = state.candles[key];
+    const t = Math.floor(ts / state.tf) * state.tf;  // bucket start
+
+    const last = arr[arr.length - 1];
+    if (!last || last.time < t) {
+      arr.push({ time: t, open: price, high: price, low: price, close: price });
+    } else {
+      last.high = Math.max(last.high, price);
+      last.low  = Math.min(last.low,  price);
+      last.close = price;
+    }
+    if (arr.length > 500) arr.shift();
+  }
+
+  function refreshChart() {
+    const code = state.selected;
+    if (!code) return;
+    const arr = state.candles[candleKey(code)] || [];
+    document.getElementById('no-data').style.display = arr.length ? 'none' : 'flex';
+    if (arr.length) {
+      candleSeries.setData([...arr]);
+      const last = arr[arr.length - 1];
+      document.getElementById('stat-open').textContent  = last.open.toLocaleString();
+      document.getElementById('stat-high').textContent  = last.high.toLocaleString();
+      document.getElementById('stat-low').textContent   = last.low.toLocaleString();
+      document.getElementById('stat-last').textContent  = last.close.toLocaleString();
+    }
+  }
+
+  // ── Sidebar ──────────────────────────────────────────────────────
+  function renderSidebar() {
+    const list = document.getElementById('contract-list');
+    const codes = Object.keys(state.contracts).sort();
+    list.innerHTML = '';
+    codes.forEach(code => {
+      const c = state.contracts[code];
+      const isActive = code === state.selected;
+      const change = c.firstPrice ? ((c.price - c.firstPrice) / c.firstPrice * 100).toFixed(2) : null;
+      const dir = c.price >= (c.prevPrice || c.price) ? 'up' : 'dn';
+      const arrow = dir === 'up' ? '▲' : '▼';
+
+      const el = document.createElement('div');
+      el.className = `contract-card${isActive ? ' active' : ''}`;
+      el.id = `card-${code}`;
+      el.innerHTML = `
+        <div class="cc-top">
+          <span class="cc-code">${code}</span>
+          <span class="cc-market">${c.market === 'futures' ? 'FUT' : 'STK'}</span>
+        </div>
+        <div class="cc-price">${c.price.toLocaleString()}</div>
+        <div class="cc-change ${dir}">
+          ${arrow}
+          ${change !== null ? `${Math.abs(change)}%` : '—'}
+        </div>
+      `;
+      el.addEventListener('click', () => selectContract(code));
+      list.appendChild(el);
+    });
+  }
+
+  function selectContract(code) {
+    state.selected = code;
+    const c = state.contracts[code];
+    document.getElementById('selected-code').textContent = code;
+    document.getElementById('selected-code').style.color = '';
+    refreshHeader(code, c.price);
+    refreshChart();
+    renderSidebar();
+  }
+
+  function refreshHeader(code, price) {
+    const c = state.contracts[code];
+    document.getElementById('selected-price').textContent = price.toLocaleString();
+    document.getElementById('selected-price').style.color = '';
+    const change = c.firstPrice ? ((price - c.firstPrice) / c.firstPrice * 100) : 0;
+    const dir = change >= 0;
+    const el = document.getElementById('selected-change');
+    el.textContent = `${dir ? '+' : ''}${change.toFixed(2)}%`;
+    el.className = dir ? 'up' : 'dn';
+  }
+
+  // ── Tick processor ───────────────────────────────────────────────
+  function processTicks(ticks) {
+    ticks.forEach(t => {
+      const { code, market, price, ts } = t;
+      const prev = state.contracts[code];
+      if (!prev) {
+        state.contracts[code] = { market, price, prevPrice: price, firstPrice: price };
+        if (!state.selected) selectContract(code);
+      } else {
+        prev.prevPrice = prev.price;
+        prev.price = price;
+      }
+      updateCandle(code, price, ts);
+
+      // Flash card
+      const card = document.getElementById(`card-${code}`);
+      if (card) {
+        const up = price >= (prev?.prevPrice ?? price);
+        card.classList.remove('flash-up', 'flash-dn');
+        void card.offsetWidth;
+        card.classList.add(up ? 'flash-up' : 'flash-dn');
+      }
+
+      // Update stat-time if selected
+      if (code === state.selected) {
+        document.getElementById('stat-time').textContent =
+          new Date(ts * 1000).toLocaleTimeString('zh-TW', { hour12: false });
+        refreshHeader(code, price);
+      }
+    });
+
+    renderSidebar();
+    if (state.selected) refreshChart();
+  }
+
+  // ── Timeframe buttons ────────────────────────────────────────────
+  document.querySelectorAll('.tf-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.tf = parseInt(btn.dataset.tf, 10);
+      candleSeries.setData([]);
+      refreshChart();
+    });
+  });
+
+  // ── WebSocket ────────────────────────────────────────────────────
+  function connect() {
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${location.host}/ws`);
+
+    ws.onopen = () => {
+      document.getElementById('status-dot').className  = 'status-dot connected';
+      document.getElementById('status-text').textContent = '即時連線';
+    };
+
+    ws.onmessage = e => {
+      try {
+        const ticks = JSON.parse(e.data);
+        if (Array.isArray(ticks) && ticks.length > 0) processTicks(ticks);
+      } catch (_) {}
+    };
+
+    ws.onerror = ws.onclose = () => {
+      document.getElementById('status-dot').className  = 'status-dot error';
+      document.getElementById('status-text').textContent = '重連中…';
+      setTimeout(connect, 3000);
+    };
+  }
+
+  connect();
+</script>
 </body>
-
 </html>

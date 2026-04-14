@@ -1,4 +1,4 @@
-﻿"""
+"""
 collector.py
 ------------
 整合三大職責：
@@ -14,6 +14,7 @@ from influxdb_client import Point
 from app.config import (
     REDIS_STREAM_KEY, INFLUXDB_BUCKET,
     SHIOAJI_API_KEY, SHIOAJI_SECRET_KEY, SHIOAJI_SIMULATION,
+    SHIOAJI_FUTURES, SHIOAJI_STOCKS,
     REDIS_HOST, REDIS_PORT,
 )
 from app.services.redis_client import get_redis_client
@@ -34,13 +35,60 @@ write_api = get_write_api()
 # ── Ingest ────────────────────────────────────────────────────────
 def run_ingest():
     api = sj.Shioaji(simulation=SHIOAJI_SIMULATION)
-    api.login(SHIOAJI_API_KEY, SHIOAJI_SECRET_KEY)
-    contract = api.Contracts.Futures.TXF.TXFR1
-    api.quote.subscribe(contract, quote_type="tick")
 
+    # ── 1. 登入（依 SKILL 標準寫法）──────────────────────────────────
+    if not SHIOAJI_API_KEY:
+        print(">>> ERROR: SHIOAJI_API_KEY not found in .env")
+        return
+
+    print(f">>> API Key detected: {SHIOAJI_API_KEY[:4]}****")
+    api.login(
+        SHIOAJI_API_KEY,
+        SHIOAJI_SECRET_KEY,
+        contracts_cb=lambda x: print("Contracts loaded."),
+        contracts_timeout=10000,
+    )
+    print(">>> Shioaji Login Successful")
+    print(api.usage())
+    time.sleep(5)  # 等待合約下載穩定
+
+    # ── 2. 期貨訂閱清單（來自 config.toml [[shioaji.futures]]）──────────────
+    for item in SHIOAJI_FUTURES:
+        try:
+            future_cat = getattr(api.Contracts.Futures, item["category"])
+            contract   = future_cat[item["id"]]
+            api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Tick)
+            api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.BidAsk)
+            print(f">>> [Futures] Subscribed: {item['name']} ({item['category']}/{item['id']})")
+        except Exception as e:
+            print(f">>> [Futures] Failed to subscribe {item.get('name', item)}: {e}")
+
+    # ── 3. 股票訂閱清單（來自 config.toml [[shioaji.stocks]]）───────────────
+    for item in SHIOAJI_STOCKS:
+        try:
+            contract = api.Contracts.Stocks[item["id"]]
+            api.quote.subscribe(
+                contract,
+                quote_type=sj.constant.QuoteType.Tick,
+                version=sj.constant.QuoteVersion.v1,
+            )
+            api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.BidAsk)
+            print(f">>> [Stocks]  Subscribed: {item['name']} ({item['id']})")
+        except Exception as e:
+            print(f">>> [Stocks]  Failed to subscribe {item.get('name', item)}: {e}")
+
+    # ── 4. Tick Callbacks ────────────────────────────────────────────────────
     @api.on_tick_fop_v1()
-    def on_tick(exchange, tick):
-        r.xadd(REDIS_STREAM_KEY, {"price": tick.close, "ts": int(time.time())}, maxlen=10000)
+    def on_tick_fop(exchange, tick):
+        """處理期貨(Futures) Tick，寫入 Redis Stream"""
+        stream_key = f"{REDIS_STREAM_KEY}:fop:{tick.code}"
+        r.xadd(stream_key, {"price": str(tick.close), "ts": str(int(time.time()))}, maxlen=10000)
+
+    @api.on_tick_stk_v1()
+    def on_tick_stk(exchange, tick):
+        """處理股票(Stock) Tick，寫入 Redis Stream"""
+        stream_key = f"{REDIS_STREAM_KEY}:stk:{tick.code}"
+        r.xadd(stream_key, {"price": str(tick.close), "ts": str(int(time.time()))}, maxlen=10000)
 
     while True:
         time.sleep(1)
@@ -48,13 +96,18 @@ def run_ingest():
 
 # ── Aggregation helpers ───────────────────────────────────────────
 def _get_ticks(seconds: int) -> list:
+    """從所有期貨合約的 Redis Stream 讀取最近 N 秒的 price 清單"""
     now = int(time.time())
-    data = r.xrange(REDIS_STREAM_KEY, min="-", max="+")
-    return [
-        float(dict(e[1])[b"price"])
-        for e in data
-        if now - int(dict(e[1])[b"ts"]) <= seconds
-    ]
+    prices = []
+    for item in SHIOAJI_FUTURES:
+        stream_key = f"{REDIS_STREAM_KEY}:fop:{item['id']}"
+        data = r.xrange(stream_key, min="-", max="+")
+        prices.extend([
+            float(dict(e[1])[b"price"])
+            for e in data
+            if now - int(dict(e[1])[b"ts"]) <= seconds
+        ])
+    return prices
 
 
 def _build_ohlc(prices: list) -> dict:
