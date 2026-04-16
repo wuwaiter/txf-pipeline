@@ -2,7 +2,32 @@
 name: "Shioajii"
 description: "定義Shioaji API (永豐金 API) 的串接規則"
 ---
-# 以下是一個可執行的範例
+
+
+# 1. API 參考, 來源參考官方 github : https://sinotrade.github.io/shioaji/
+```python
+import shioaji as sj
+
+api = sj.Shioaji(simulation=False)
+api.login(api_key="YOUR_API_KEY", secret_key="YOUR_SECRET_KEY")
+
+# 訂閱證券報價
+contract = api.Contracts.Stocks['2330']
+api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Tick)
+
+# 訂閱期貨報價
+contract = api.Contracts.Futures.TXF['TXF202602']
+api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Tick)
+
+# 取得報價
+api.quote.snapshot(contract)
+
+# 取得歷史資料
+api.quote.history(contract, start='2026-01-01', end='2026-01-31', interval=sj.constant.Interval.Min)
+```
+
+
+# 2. 以下是一個可執行的範例
 
 ```python
 import os

@@ -62,10 +62,19 @@ graph TD
 ## 資料流向 (Data Flow)
 
 **【即時圖表呈現流程】**
-`Shioaji API` -> `Python Ingest` -> `Redis` (各合約 Stream key) -> `Flask Web` (WebSocket) -> `Frontend Dashboard`
+`Shioaji API` -> `Python Ingest` -> `Redis` (tick:txf) -> `Flask Web` (WebSocket) -> `Frontend Dashboard`
 
 **【歷史紀錄與聚合流程】**
-`Celery Beat` (定時觸發) -> `Celery Worker` (到 `Redis` 取出區間資料計算 OHLC) -> 寫入 `InfluxDB` -> 透過 `Grafana` 查詢與長線呈現
+`Redis` (tick:txf) -> `Celery Worker/Beat` 取出一段區間的資料計算 OHLC -> 寫入 `InfluxDB` -> 透過 `Grafana` 查詢與呈現
+
+## 開發技術棧 (Tech Stack)
+
+- **核心語言**: Python, Rust (高效能併發), HTML/JS
+- **資料庫/快取**: Redis, InfluxDB 2
+- **排程與非同步任務**: Celery
+- **API 與連線**: WebSocket (Warp 框架), Shioaji API (取得台股報價)
+- **前端圖表**: TradingView Lightweight Charts
+- **基礎設施**: Docker, Docker Compose, Nginx
 
 ## 執行與部署指引
 
