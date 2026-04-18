@@ -9,8 +9,9 @@ description: "定義Shioaji API (永豐金 API) 的串接規則"
 
 - **名稱**：Shioajii (永豐證券/期貨 API 串接規章)
 - **來源**：https://sinotrade.github.io/shioaji/
-- **目的**：定義 Shioaji API 登入、訂閱即時報價(Tick/BidAsk)與取得快照歷史資料的標準流程。
+- **目的**：定義 Shioaji API 登入、訂閱即時報價(Quote)與取得快照歷史資料的標準流程。
 - **類型**：Python 腳本與 Flask Web 應用整合範例。
+
 
 ## 技術堆疊
 
@@ -31,11 +32,11 @@ api.login(api_key="YOUR_API_KEY", secret_key="YOUR_SECRET_KEY")
 
 # 訂閱證券報價
 contract = api.Contracts.Stocks['2330']
-api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Tick)
+api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Quote, version=sj.constant.QuoteVersion.v1)
 
 # 訂閱期貨報價
 contract = api.Contracts.Futures.TXF['TXF202602']
-api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Tick)
+api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Quote, version=sj.constant.QuoteVersion.v1)
 
 # 取得報價快照
 api.quote.snapshot(contract)
@@ -45,19 +46,19 @@ api.quote.history(contract, start='2026-01-01', end='2026-01-31', interval=sj.co
 ```
 
 ### 2. 環境變數讀取與動態初始化
-- 透過 `.env` 讀取 `API_KEY` 與 `SECRET_KEY` 來保護敏感資訊。
+- 透過 `load_dotenv` 載入 `.env` 來讀取 `API_KEY` 與 `SECRET_KEY` 保護敏感資訊。
 - 載入自定義的 `config.py`，從 `WATCH_LIST` 讀取欲訂閱的商品清單，動態生成內部儲存字典 `market_data`。
 
 ### 3. 動態訂閱機制 (Subscribe)
 區分股票與期貨的合約物件提取邏輯：
-- **Stock**：走 `api.Contracts.Stocks[...]` 介面，且 `subscribe` 時建議使用 `version=sj.constant.QuoteVersion.v1` 以匹配 v1 版 tick API。
-- **Future**：走 `getattr(api.Contracts.Futures, item['category'])[...]` 動態提取期貨總類（例如 TXF）。
-- 將上述合約都訂閱 Tick 與 BidAsk 資料流。
+- **Stock**：走 `getattr(api.Contracts.Stocks, item['id'])` 動態提取股票介面，且 `subscribe` 時建議使用 `version=sj.constant.QuoteVersion.v1` 以匹配 v1 版 Quote API。
+- **Future**：走 `getattr(api.Contracts.Futures, item['category'])[item['id']]` 動態提取期貨總類（例如 TXF）。
+- stock/future 的合約都訂閱 Quote 資料流。
 
 ### 4. Callback 處理行情
-利用 Decorator 來監聽即時封包，並更新 `market_data` 內容：
-- `@api.on_tick_stk_v1()`：用來更新證券報價。
-- `@api.on_tick_fop_v1()`：用來更新期貨報價。
+利用 Decorator 來監聽即時 Quote 封包，並更新 `market_data` 內容：
+- `@api.on_quote_stk_v1()`：用來更新證券報價。
+- `@api.on_quote_fop_v1()`：用來更新期貨報價。
 收到資料後交由 `update_tick_data` 轉換時間格式與數字格式（千分位）後儲存。
 
 ## 元件階層與資料流
@@ -67,7 +68,7 @@ Shioaji Thread (非同步讀取即時行情)
  ├── load_dotenv (.env)
  ├── api.login()
  ├── subscribe_quotes() (依據 config.WATCH_LIST)
- └── on_tick (更新記憶體內 market_data)
+ └── on_quote (更新記憶體內 market_data)
 
 Flask App Thread (提供對外服務)
  ├── /         → 渲染 index.html，回傳前端 UI
@@ -79,7 +80,7 @@ Flask App Thread (提供對外服務)
 ### 優點 / 觀察結果
 - **關注點分離**：Shioaji 連線邏輯運作在獨立 `threading.Thread` 中，不阻擋 Flask 主執行緒運作。
 - **設定驅動化**：由外部的 `config.py` 帶動所有訂閱行為，增減品種時不需修改核心程式碼。
-- **雙軌確保資料準確**：除了使用 Callback 接收即時 Tick 外，在 `/api/data` 中亦混用 Snapshot 來補充完整的跌漲幅資訊。
+- **雙軌確保資料準確**：除了使用 Callback 接收即時 Quote 外，在 `/api/data` 中亦混用 Snapshot 來補充完整的跌漲幅資訊。
 
 ## 完整串接範例參考
 
@@ -116,8 +117,8 @@ def subscribe_quotes():
     for item in config.WATCH_LIST:
         ... # 判斷 type 為 Stock 或 Future 並進行 subscribe
 
-@api.on_tick_stk_v1()
-def quote_callback_stk(exchange, tick):
+@api.on_quote_stk_v1()
+def quote_callback_stk(exchange, quote):
     ... # 比對合約代碼並更新 market_data
 
 @app.route('/api/data')

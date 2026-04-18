@@ -57,8 +57,7 @@ def run_ingest():
         try:
             future_cat = getattr(api.Contracts.Futures, item["category"])
             contract   = future_cat[item["id"]]
-            api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Tick)
-            api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.BidAsk)
+            api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Quote, version=sj.constant.QuoteVersion.v1)
             print(f">>> [Futures] Subscribed: {item['name']} ({item['category']}/{item['id']})")
         except Exception as e:
             print(f">>> [Futures] Failed to subscribe {item.get('name', item)}: {e}")
@@ -69,26 +68,25 @@ def run_ingest():
             contract = api.Contracts.Stocks[item["id"]]
             api.quote.subscribe(
                 contract,
-                quote_type=sj.constant.QuoteType.Tick,
+                quote_type=sj.constant.QuoteType.Quote,
                 version=sj.constant.QuoteVersion.v1,
             )
-            api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.BidAsk)
             print(f">>> [Stocks]  Subscribed: {item['name']} ({item['id']})")
         except Exception as e:
             print(f">>> [Stocks]  Failed to subscribe {item.get('name', item)}: {e}")
 
-    # ── 4. Tick Callbacks ────────────────────────────────────────────────────
-    @api.on_tick_fop_v1()
-    def on_tick_fop(exchange, tick):
-        """處理期貨(Futures) Tick，寫入 Redis Stream"""
-        stream_key = f"{REDIS_STREAM_KEY}:fop:{tick.code}"
-        r.xadd(stream_key, {"price": str(tick.close), "ts": str(int(time.time()))}, maxlen=10000)
+    # ── 4. Quote Callbacks ───────────────────────────────────────────────────
+    @api.on_quote_fop_v1()
+    def on_quote_fop(exchange, quote):
+        """處理期貨(Futures) Quote，寫入 Redis Stream"""
+        stream_key = f"{REDIS_STREAM_KEY}:fop:{quote.code}"
+        r.xadd(stream_key, {"price": str(quote.close), "ts": str(int(time.time()))}, maxlen=10000)
 
-    @api.on_tick_stk_v1()
-    def on_tick_stk(exchange, tick):
-        """處理股票(Stock) Tick，寫入 Redis Stream"""
-        stream_key = f"{REDIS_STREAM_KEY}:stk:{tick.code}"
-        r.xadd(stream_key, {"price": str(tick.close), "ts": str(int(time.time()))}, maxlen=10000)
+    @api.on_quote_stk_v1()
+    def on_quote_stk(exchange, quote):
+        """處理股票(Stock) Quote，寫入 Redis Stream"""
+        stream_key = f"{REDIS_STREAM_KEY}:stk:{quote.code}"
+        r.xadd(stream_key, {"price": str(quote.close), "ts": str(int(time.time()))}, maxlen=10000)
 
     while True:
         time.sleep(1)
