@@ -91,6 +91,13 @@ def api_streams():
     return jsonify(_get_latest_ticks())
 
 
+@app.route("/api/reconnect", methods=["POST"])
+def api_reconnect():
+    """手動發出重新連線指令給 collector"""
+    r.set(f"{REDIS_STREAM_KEY}:cmd", "login")
+    return jsonify({"success": True})
+
+
 @app.route("/api/candles")
 def api_candles():
     """
@@ -126,9 +133,12 @@ def api_candles():
 
 @sock.route("/ws")
 def ws_tick(ws):
-    """WebSocket：每 0.5 秒推送所有合約的最新 tick"""
+    """WebSocket：每 0.5 秒推送所有合約的最新 tick 及連線狀態"""
     while True:
         try:
+            status = r.get(f"{REDIS_STREAM_KEY}:status") or "unknown"
+            ws.send(json.dumps({"type": "status", "status": status}))
+            
             ticks = _get_latest_ticks()
             if ticks:
                 ws.send(json.dumps(ticks))

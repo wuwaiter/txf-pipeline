@@ -32,48 +32,44 @@ celery_app.conf.beat_schedule = {
 write_api = get_write_api()
 
 
-# ── Ingest ────────────────────────────────────────────────────────
-def run_ingest():
-    api = sj.Shioaji(simulation=SHIOAJI_SIMULATION)
-
-    # ── 1. 登入（依 SKILL 標準寫法）──────────────────────────────────
+def perform_login(api):
     if not SHIOAJI_API_KEY:
         print(">>> ERROR: SHIOAJI_API_KEY not found in .env")
-        return
-
+        return False
     print(f">>> API Key detected: {SHIOAJI_API_KEY[:4]}****")
-    api.login(
-        SHIOAJI_API_KEY,
-        SHIOAJI_SECRET_KEY,
-        contracts_cb=lambda x: print("Contracts loaded."),
-        contracts_timeout=10000,
-    )
-    print(">>> Shioaji Login Successful")
-    print(api.usage())
-    time.sleep(5)  # 等待合約下載穩定
+    try:
+        api.login(
+            SHIOAJI_API_KEY,
+            SHIOAJI_SECRET_KEY,
+            contracts_cb=lambda x: print("Contracts loaded."),
+            contracts_timeout=10000,
+        )
+        print(">>> Shioaji Login Called")
+        time.sleep(5)
+        return True
+    except Exception as e:
+        print(f">>> Login Error: {e}")
+        return False
 
-    # ── 2. 期貨訂閱清單（來自 config.toml [[shioaji.futures]]）──────────────
+def perform_subscribe(api):
+    print(">>> Subscribing to contracts...")
     for item in SHIOAJI_FUTURES:
         try:
             future_cat = getattr(api.Contracts.Futures, item["category"])
             contract   = future_cat[item["id"]]
             api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Quote, version=sj.constant.QuoteVersion.v1)
-            print(f">>> [Futures] Subscribed: {item['name']} ({item['category']}/{item['id']})")
         except Exception as e:
-            print(f">>> [Futures] Failed to subscribe {item.get('name', item)}: {e}")
-
-    # ── 3. 股票訂閱清單（來自 config.toml [[shioaji.stocks]]）───────────────
+            print(f">>> [Futures] Failed to sub {item.get('id')}: {e}")
     for item in SHIOAJI_STOCKS:
         try:
             contract = api.Contracts.Stocks[item["id"]]
-            api.quote.subscribe(
-                contract,
-                quote_type=sj.constant.QuoteType.Quote,
-                version=sj.constant.QuoteVersion.v1,
-            )
-            print(f">>> [Stocks]  Subscribed: {item['name']} ({item['id']})")
+            api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Quote, version=sj.constant.QuoteVersion.v1)
         except Exception as e:
-            print(f">>> [Stocks]  Failed to subscribe {item.get('name', item)}: {e}")
+            print(f">>> [Stocks] Failed to sub {item.get('id')}: {e}")
+
+# ── Ingest ────────────────────────────────────────────────────────
+def run_ingest():
+    api = sj.Shioaji(simulation=SHIOAJI_SIMULATION)
 
     # ── 4. Quote Callbacks ───────────────────────────────────────────────────
     @api.on_quote_fop_v1()
@@ -88,8 +84,46 @@ def run_ingest():
         stream_key = f"{REDIS_STREAM_KEY}:stk:{quote.code}"
         r.xadd(stream_key, {"price": str(quote.close), "ts": str(int(time.time()))}, maxlen=10000)
 
+    def check_and_update_status():
+        current_status = r.get(f"{REDIS_STREAM_KEY}:status")
+        try:
+            if current_status != b"connected":
+                perform_login(api)
+            usage = api.usage()
+            print(f">>> [Check] Quota limit: {usage.limit_bytes}, remaining: {usage.remaining_bytes}")
+            if usage.remaining_bytes <= 0:
+                print(">>> [Monitor] Quota = 0, executing logout()...")
+                api.logout()
+                r.set(f"{REDIS_STREAM_KEY}:status", "disconnected")
+            else:
+                if current_status != b"connected":
+                    print(">>> [Monitor] Quota > 0, subscribing...")
+                    perform_subscribe(api)
+                    r.set(f"{REDIS_STREAM_KEY}:status", "connected")
+        except Exception as e:
+            print(f">>> [Monitor] Error checking usage: {e}")
+            r.set(f"{REDIS_STREAM_KEY}:status", "disconnected")
+
+    print(">>> Initializing connection...")
+    check_and_update_status()
+
+    ticks = 0
     while True:
         time.sleep(1)
+        ticks += 1
+        
+        # 手動 UI 重連
+        cmd = r.get(f"{REDIS_STREAM_KEY}:cmd")
+        if cmd == b"login":
+            r.delete(f"{REDIS_STREAM_KEY}:cmd")
+            print(">>> [Manual] Reconnect requested.")
+            check_and_update_status()
+            
+        # 每 10 分鐘自動檢查 (600秒)
+        if ticks >= 600:
+            ticks = 0
+            print(">>> [10-min Check] Executing usage check...")
+            check_and_update_status()
 
 
 # ── Aggregation helpers ───────────────────────────────────────────
