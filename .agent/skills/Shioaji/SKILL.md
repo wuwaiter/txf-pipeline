@@ -53,13 +53,26 @@ api.quote.history(contract, start='2026-01-01', end='2026-01-31', interval=sj.co
 區分股票與期貨的合約物件提取邏輯：
 - **Stock**：走 `getattr(api.Contracts.Stocks, item['id'])` 動態提取股票介面，且 `subscribe` 時建議使用 `version=sj.constant.QuoteVersion.v1` 以匹配 v1 版 Quote API。
 - **Future**：走 `getattr(api.Contracts.Futures, item['category'])[item['id']]` 動態提取期貨總類（例如 TXF）。
-- stock/future 的合約都訂閱 Quote 資料流。
+- Future 因為有時間限制, 到期後合約無法再透過 api.Contracts 取得. 需要改使用R1, R2合約來取得
+  例如 `api.Contracts.Futures.TXF.TXFR1`
+- stock/future 的合約都使用`Quote` 訂閱資料流
 
 ### 4. Callback 處理行情
 利用 Decorator 來監聽即時 Quote 封包，並更新 `market_data` 內容：
 - `@api.on_quote_stk_v1()`：用來更新證券報價。
 - `@api.on_quote_fop_v1()`：用來更新期貨報價。
 收到資料後交由 `update_tick_data` 轉換時間格式與數字格式（千分位）後儲存。
+
+### 5. 流量確認
+依Shioaji的API `api.usage`, 查詢當下的流量
+當流量為0的時候
+1. 執行 api.logout()
+2. 暫停從 shioaji API繼續獲取流量  並同時將 上方的"即時連線"顯示為"連線中斷"
+3. 點擊 "連線中斷"時, 重新執行 api.login()
+
+流量限制 : https://sinotrade.github.io/zh/tutor/limit/
+
+
 
 ## 元件階層與資料流
 
