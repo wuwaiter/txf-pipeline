@@ -67,8 +67,8 @@ api.quote.history(contract, start='2026-01-01', end='2026-01-31', interval=sj.co
 依Shioaji的API `api.usage`, 查詢當下的流量
 當流量為0的時候
 1. 執行 api.logout()
-2. 暫停從 shioaji API繼續獲取流量  並同時將 上方的"即時連線"顯示為"連線中斷"
-3. 點擊 "連線中斷"時, 重新執行 api.login()
+2. 暫停從 shioaji API繼續獲取流量  並同時將 上方的連線狀態指示燈 "即時連線"顯示為"連線中斷"
+3. 點擊連線狀態指示燈的 "連線中斷"時, 重新執行 api.login()
 
 流量限制 : https://sinotrade.github.io/zh/tutor/limit/
 

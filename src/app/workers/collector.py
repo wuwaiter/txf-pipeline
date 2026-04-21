@@ -90,6 +90,8 @@ def run_ingest():
             if current_status != b"connected":
                 perform_login(api)
             usage = api.usage()
+            r.set(f"{REDIS_STREAM_KEY}:usage_bytes", usage.bytes)
+            r.set(f"{REDIS_STREAM_KEY}:limit_bytes", usage.limit_bytes)
             print(f">>> [Check] Quota limit: {usage.limit_bytes}, remaining: {usage.remaining_bytes}")
             if usage.remaining_bytes <= 0:
                 print(">>> [Monitor] Quota = 0, executing logout()...")
@@ -127,51 +129,61 @@ def run_ingest():
 
 
 # ── Aggregation helpers ───────────────────────────────────────────
-def _get_ticks(seconds: int) -> list:
-    """從所有期貨合約的 Redis Stream 讀取最近 N 秒的 price 清單"""
+def _aggregate_and_write(seconds: int, interval: str):
     now = int(time.time())
-    prices = []
-    for item in SHIOAJI_FUTURES:
-        stream_key = f"{REDIS_STREAM_KEY}:fop:{item['id']}"
-        data = r.xrange(stream_key, min="-", max="+")
-        prices.extend([
+    try:
+        all_keys = r.keys(f"{REDIS_STREAM_KEY}:*")
+    except Exception as e:
+        print(f"Redis err: {e}")
+        return
+
+    fop_prefix = f"{REDIS_STREAM_KEY}:fop:".encode()
+    stk_prefix = f"{REDIS_STREAM_KEY}:stk:".encode()
+
+    for b_key in all_keys:
+        if not (b_key.startswith(fop_prefix) or b_key.startswith(stk_prefix)):
+            continue
+            
+        data = r.xrange(b_key, min="-", max="+")
+        prices = [
             float(dict(e[1])[b"price"])
             for e in data
             if now - int(dict(e[1])[b"ts"]) <= seconds
-        ])
-    return prices
-
-
-def _build_ohlc(prices: list) -> dict:
-    return {"open": prices[0], "high": max(prices), "low": min(prices), "close": prices[-1]}
-
-
-def _write_influx(interval: str, ohlc: dict):
-    point = (
-        Point("txf").tag("interval", interval)
-        .field("open", ohlc["open"]).field("high", ohlc["high"])
-        .field("low", ohlc["low"]).field("close", ohlc["close"])
-    )
-    write_api.write(bucket=INFLUXDB_BUCKET, record=point)
+        ]
+        if not prices:
+            continue
+            
+        ohlc = {"open": prices[0], "high": max(prices), "low": min(prices), "close": prices[-1]}
+        market = "futures" if b_key.startswith(fop_prefix) else "stocks"
+        code = b_key.split(b":")[-1].decode()
+        
+        point = (
+            Point("txf")
+            .tag("interval", interval)
+            .tag("market", market)
+            .tag("code", code)
+            .field("open", ohlc["open"])
+            .field("high", ohlc["high"])
+            .field("low", ohlc["low"])
+            .field("close", ohlc["close"])
+        )
+        write_api.write(bucket=INFLUXDB_BUCKET, record=point)
 
 
 # ── Celery tasks ──────────────────────────────────────────────────
 @celery_app.task
 def agg_1m():
-    prices = _get_ticks(60)
-    if prices: _write_influx("1m", _build_ohlc(prices))
+    _aggregate_and_write(60, "1m")
 
 
 @celery_app.task
 def agg_5m():
-    prices = _get_ticks(300)
-    if prices: _write_influx("5m", _build_ohlc(prices))
+    _aggregate_and_write(300, "5m")
 
 
 @celery_app.task
 def agg_60m():
-    prices = _get_ticks(3600)
-    if prices: _write_influx("60m", _build_ohlc(prices))
+    _aggregate_and_write(3600, "60m")
 
 
 if __name__ == "__main__":

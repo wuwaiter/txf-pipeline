@@ -421,7 +421,7 @@
 
     .toggle-chart-btn.hidden-state {
       color: var(--text-3);
-      border-color: rgba(255,255,255,.04);
+      border-color: rgba(255, 255, 255, .04);
     }
 
     /* ── Stats bar ── */
@@ -480,6 +480,8 @@
       TXF Pipeline
     </div>
     <div class="header-right">
+      <div class="usage-text" id="usage-text"
+        style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-2);">0.00 / 0.00 MB</div>
       <div class="status-badge">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">連線中…</span>
@@ -506,9 +508,10 @@
           <button class="tf-btn" data-tf="300" id="tf-5m">5m</button>
           <button class="tf-btn" data-tf="3600" id="tf-60m">60m</button>
           <button class="toggle-chart-btn" id="toggle-chart-btn" title="顯示/隱藏K線">
-            <svg id="toggle-chart-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-              <circle cx="12" cy="12" r="3"/>
+            <svg id="toggle-chart-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
             </svg>
             <span id="toggle-chart-label">隱藏K線</span>
           </button>
@@ -525,8 +528,9 @@
         </div>
         <div class="chart-hidden-overlay" id="chart-hidden-overlay">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-            <line x1="1" y1="1" x2="23" y2="23"/>
+            <path
+              d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+            <line x1="1" y1="1" x2="23" y2="23" />
           </svg>
           <p>K線已隱藏</p>
         </div>
@@ -607,7 +611,8 @@
       const key = candleKey(code);
       if (!state.candles[key]) state.candles[key] = [];
       const arr = state.candles[key];
-      const t = Math.floor(ts / state.tf) * state.tf;  // bucket start
+      // 轉換為 UTC+8 給 lightweight charts 顯示當地時間
+      const t = Math.floor(ts / state.tf) * state.tf + 28800;
 
       const last = arr[arr.length - 1];
       if (!last || last.time < t) {
@@ -644,6 +649,8 @@
         if (!resp.ok) return;
         const candles = await resp.json();
         if (!Array.isArray(candles) || candles.length === 0) return;
+        // 轉換為 UTC+8 給 lightweight charts 顯示當地時間
+        candles.forEach(c => c.time += 28800);
         const key = `${code}:${tf}`;
         state.candles[key] = candles;    // 覆蓋 / 初始化歷史資料
         // 如果目前正在顯示這個 code + tf，立刻刷新圖表
@@ -656,9 +663,9 @@
     // ── K線顯示/隱藏控制 ─────────────────────────────────────────────
     function applyChartVisibility() {
       const overlay = document.getElementById('chart-hidden-overlay');
-      const btn     = document.getElementById('toggle-chart-btn');
-      const label   = document.getElementById('toggle-chart-label');
-      const icon    = document.getElementById('toggle-chart-icon');
+      const btn = document.getElementById('toggle-chart-btn');
+      const label = document.getElementById('toggle-chart-label');
+      const icon = document.getElementById('toggle-chart-icon');
 
       if (state.chartVisible) {
         overlay.classList.remove('active');
@@ -818,24 +825,32 @@
           if (Array.isArray(data) && data.length > 0) {
             processTicks(data);
           } else if (data.type === 'status') {
-             const statusText = document.getElementById('status-text');
-             const statusDot = document.getElementById('status-dot');
-             if (data.status === 'connected') {
-                statusText.textContent = '即時連線';
-                statusDot.className = 'status-dot connected';
+            const statusText = document.getElementById('status-text');
+            const statusDot = document.getElementById('status-dot');
+            const usageText = document.getElementById('usage-text');
+
+            if (data.usage_bytes !== undefined && data.limit_bytes !== undefined) {
+              const usedMB = (data.usage_bytes / 1024 / 1024).toFixed(2);
+              const limitMB = (data.limit_bytes / 1024 / 1024).toFixed(2);
+              usageText.textContent = `${usedMB} / ${limitMB} MB`;
+            }
+
+            if (data.status === 'connected') {
+              statusText.textContent = '即時連線';
+              statusDot.className = 'status-dot connected';
+              statusText.style.cursor = 'default';
+              statusText.onclick = null;
+            } else if (data.status === 'disconnected' || data.status === 'error') {
+              statusText.textContent = '連線中斷 (點擊重連)';
+              statusDot.className = 'status-dot error';
+              statusText.style.cursor = 'pointer';
+              statusText.onclick = () => {
+                fetch('/api/reconnect', { method: 'POST' }).catch(e => console.error(e));
+                statusText.textContent = '重新登入中…';
                 statusText.style.cursor = 'default';
                 statusText.onclick = null;
-             } else if (data.status === 'disconnected' || data.status === 'error') {
-                statusText.textContent = '連線中斷 (點擊重連)';
-                statusDot.className = 'status-dot error';
-                statusText.style.cursor = 'pointer';
-                statusText.onclick = () => {
-                   fetch('/api/reconnect', { method: 'POST' }).catch(e => console.error(e));
-                   statusText.textContent = '重新登入中…';
-                   statusText.style.cursor = 'default';
-                   statusText.onclick = null;
-                };
-             }
+              };
+            }
           }
         } catch (_) { }
       };
