@@ -5,12 +5,14 @@ import math
 from flask import Flask, send_from_directory, jsonify, request
 from flask_sock import Sock
 
-from app.config import APP_PORT, REDIS_STREAM_KEY
+from app.config import APP_PORT, REDIS_STREAM_KEY, INFLUXDB_BUCKET
 from app.services.redis_client import get_redis_client
+from app.services.influx_client import get_query_api
 
 app = Flask(__name__)
 sock = Sock(app)
 r = get_redis_client(decode_responses=True)
+query_api = get_query_api()
 
 # Absolute path to the frontend directory (container: /app/frontend)
 FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend"))
@@ -29,11 +31,7 @@ def _get_latest_ticks() -> list[dict]:
     try:
         all_keys = r.keys(f"{REDIS_STREAM_KEY}:*")
         for key in sorted(all_keys):
-            data_list = r.xrevrange(key, max="+", min="-", count=1)
-            if not data_list:
-                continue
-            _, data = data_list[0]
-            # 判斷商品類型
+            # 先判斷商品類型過濾非 Stream 的 key (如 txf:status)
             if key.startswith(FOP_PREFIX):
                 market = "futures"
                 code = key[len(FOP_PREFIX):]
@@ -42,6 +40,11 @@ def _get_latest_ticks() -> list[dict]:
                 code = key[len(STK_PREFIX):]
             else:
                 continue
+                
+            data_list = r.xrevrange(key, max="+", min="-", count=1)
+            if not data_list:
+                continue
+            _, data = data_list[0]
             results.append({
                 "market": market,
                 "code": code,
@@ -53,15 +56,48 @@ def _get_latest_ticks() -> list[dict]:
     return results
 
 
+def _fetch_from_influx(code: str, tf_seconds: int) -> dict[int, dict]:
+    interval = "1m" if tf_seconds == 60 else "5m" if tf_seconds == 300 else "60m"
+    query = f'''
+        from(bucket: "{INFLUXDB_BUCKET}")
+        |> range(start: -30d)
+        |> filter(fn: (r) => r._measurement == "txf")
+        |> filter(fn: (r) => r.code == "{code}" and r.interval == "{interval}")
+        |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+        |> tail(n: 60)
+    '''
+    candles = {}
+    try:
+        tables = query_api.query(query)
+        for table in tables:
+            for record in table.records:
+                ts = int(record.get_time().timestamp())
+                candles[ts] = {
+                    "time": ts,
+                    "open": record.values.get("open"),
+                    "high": record.values.get("high"),
+                    "low": record.values.get("low"),
+                    "close": record.values.get("close"),
+                }
+    except Exception as e:
+        print(f"Influx query error: {e}")
+    return candles
+
+
 def _build_candles_from_stream(stream_key: str, tf: int) -> list[dict]:
-    """從 Redis Stream 讀取全部 ticks，彙整成 OHLC K 線清單"""
+    """從 Redis Stream 讀取全部 ticks，並與 InfluxDB 歷史資料彙整成 OHLC K 線清單"""
+    code = stream_key.split(":")[-1]
+    
+    # 1. Base candles from InfluxDB (last 60)
+    candles = _fetch_from_influx(code, tf)
+    
+    # 2. Overlay intra-period updates & newest ticks from Redis stream
     try:
         raw = r.xrange(stream_key, min="-", max="+")
     except Exception as e:
         print(f"Redis xrange error: {e}")
-        return []
+        raw = []
 
-    candles: dict[int, dict] = {}
     for _, data in raw:
         try:
             price = float(data.get("price", 0))
@@ -137,7 +173,15 @@ def ws_tick(ws):
     while True:
         try:
             status = r.get(f"{REDIS_STREAM_KEY}:status") or "unknown"
-            ws.send(json.dumps({"type": "status", "status": status}))
+            usage_bytes = r.get(f"{REDIS_STREAM_KEY}:usage_bytes") or "0"
+            limit_bytes = r.get(f"{REDIS_STREAM_KEY}:limit_bytes") or "0"
+            
+            ws.send(json.dumps({
+                "type": "status", 
+                "status": status,
+                "usage_bytes": int(usage_bytes),
+                "limit_bytes": int(limit_bytes)
+            }))
             
             ticks = _get_latest_ticks()
             if ticks:

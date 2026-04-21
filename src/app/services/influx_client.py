@@ -1,4 +1,4 @@
-﻿from influxdb_client import InfluxDBClient
+from influxdb_client import InfluxDBClient
 from influxdb_client.client.write_api import SYNCHRONOUS
 from app.config import INFLUXDB_URL, INFLUXDB_TOKEN, INFLUXDB_ORG
 
@@ -9,3 +9,7 @@ def get_influx_client() -> InfluxDBClient:
 
 def get_write_api():
     return get_influx_client().write_api(write_options=SYNCHRONOUS)
+
+
+def get_query_api():
+    return get_influx_client().query_api()

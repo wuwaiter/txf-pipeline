@@ -12,7 +12,6 @@ services:
       - "8086:8086"
     volumes:
       - influxdb_data:/var/lib/influxdb2
-      - ./config/influxdb/influxdb.conf:/etc/influxdb2/config.yml
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
       - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_INIT_USERNAME}
