@@ -12,7 +12,7 @@ from celery import Celery
 from influxdb_client import Point
 
 from app.config import (
-    REDIS_STREAM_KEY, INFLUXDB_BUCKET,
+    REDIS_STREAM_KEY, INFLUXDB_BUCKET, INFLUXDB_MONITORING_BUCKET,
     SHIOAJI_API_KEY, SHIOAJI_SECRET_KEY, SHIOAJI_SIMULATION,
     SHIOAJI_FUTURES, SHIOAJI_STOCKS,
     REDIS_HOST, REDIS_PORT,
@@ -93,6 +93,20 @@ def run_ingest():
             r.set(f"{REDIS_STREAM_KEY}:usage_bytes", usage.bytes)
             r.set(f"{REDIS_STREAM_KEY}:limit_bytes", usage.limit_bytes)
             print(f">>> [Check] Quota limit: {usage.limit_bytes}, remaining: {usage.remaining_bytes}")
+            
+            # 寫入 InfluxDB monitoring bucket
+            try:
+                point = (
+                    Point("shioaji_usage")
+                    .field("bytes_used", int(usage.bytes))
+                    .field("bytes_limit", int(usage.limit_bytes))
+                    .field("bytes_remaining", int(usage.remaining_bytes))
+                )
+                write_api.write(bucket=INFLUXDB_MONITORING_BUCKET, record=point)
+                print(f">>> [Monitor] Usage written to InfluxDB monitoring bucket")
+            except Exception as influx_err:
+                print(f">>> [Monitor] Failed to write usage to InfluxDB: {influx_err}")
+            
             if usage.remaining_bytes <= 0:
                 print(">>> [Monitor] Quota = 0, executing logout()...")
                 api.logout()
