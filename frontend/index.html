@@ -18,8 +18,8 @@
       --bg-3: #1f2640;
       --accent: #3b82f6;
       --accent-glow: rgba(59, 130, 246, .25);
-      --green: #022222;
-      --red: #660000;
+      --green: #22c55e;
+      --red: #ef4444;
       --yellow: #4b4400;
       --text-1: #f0f4ff;
       --text-2: #94a3b8;
@@ -234,11 +234,11 @@
     }
 
     .up {
-      color: var(--green);
+      color: var(--red);
     }
 
     .dn {
-      color: var(--red);
+      color: var(--green);
     }
 
     .flash-up {
@@ -586,9 +586,9 @@
       handleScale: true,
     });
     const candleSeries = chart.addCandlestickSeries({
-      upColor: '#22c55e', downColor: '#ef4444',
-      borderUpColor: '#22c55e', borderDownColor: '#ef4444',
-      wickUpColor: '#22c55e', wickDownColor: '#ef4444',
+      upColor: '#ef4444', downColor: '#22c55e',
+      borderUpColor: '#ef4444', borderDownColor: '#22c55e',
+      wickUpColor: '#ef4444', wickDownColor: '#22c55e',
     });
 
     // Resize observer
