@@ -31,8 +31,6 @@ config.py
 secrets.py
 .env
 .env.*
-config.toml
-pyproject.toml
 
 # ========================
 # 憑證與私鑰
@@ -41,6 +39,12 @@ cert/
 *.pfx
 *.pem
 *.key
+
+# ========================
+# AI Agent 相關
+# ========================
+.agent/
+! .agent/skills/
 
 # ========================
 # Log 與資料庫備份檔案
@@ -56,3 +60,12 @@ logs/
 .idea/
 .DS_Store
 Thumbs.db
+
+# ========================
+# Python 建置產物
+# ========================
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/

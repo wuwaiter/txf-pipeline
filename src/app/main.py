@@ -170,6 +170,14 @@ def api_candles():
 @sock.route("/ws")
 def ws_tick(ws):
     """WebSocket：每 0.5 秒推送所有合約的最新 tick 及連線狀態"""
+    # 頁面開啟時，通知 python-ingest 立即刷新流量（不寫 InfluxDB）
+    try:
+        current_cmd = r.get(f"{REDIS_STREAM_KEY}:cmd")
+        if not current_cmd:  # 不覆蓋較高優先級的 login 指令
+            r.set(f"{REDIS_STREAM_KEY}:cmd", "usage")
+    except Exception:
+        pass
+
     while True:
         try:
             status = r.get(f"{REDIS_STREAM_KEY}:status") or "unknown"

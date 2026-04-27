@@ -7,14 +7,12 @@ collector.py
 3. OHLC聚合計算 -> 寫入 InfluxDB
 """
 import time
-import shioaji as sj
 from celery import Celery
+from celery.schedules import crontab
 from influxdb_client import Point
 
 from app.config import (
-    REDIS_STREAM_KEY, INFLUXDB_BUCKET, INFLUXDB_MONITORING_BUCKET,
-    SHIOAJI_API_KEY, SHIOAJI_SECRET_KEY, SHIOAJI_SIMULATION,
-    SHIOAJI_FUTURES, SHIOAJI_STOCKS,
+    REDIS_STREAM_KEY, INFLUXDB_BUCKET,
     REDIS_HOST, REDIS_PORT,
 )
 from app.services.redis_client import get_redis_client
@@ -24,122 +22,19 @@ r = get_redis_client(decode_responses=False)
 
 celery_app = Celery("collector", broker=f"redis://{REDIS_HOST}:{REDIS_PORT}/0")
 celery_app.conf.beat_schedule = {
-    "agg-1m":  {"task": "app.workers.collector.agg_1m",  "schedule": 60},
-    "agg-5m":  {"task": "app.workers.collector.agg_5m",  "schedule": 300},
-    "agg-60m": {"task": "app.workers.collector.agg_60m", "schedule": 3600},
+    # 每分鐘第 0 秒觸發
+    "agg-1m":  {"task": "app.workers.collector.agg_1m",  "schedule": crontab()},
+    # 每5分鐘整點觸發 (0,5,10,...,55)
+    "agg-5m":  {"task": "app.workers.collector.agg_5m",  "schedule": crontab(minute="0,5,10,15,20,25,30,35,40,45,50,55")},
+    # 每小時整點觸發
+    "agg-60m": {"task": "app.workers.collector.agg_60m", "schedule": crontab(minute="0")},
 }
+celery_app.conf.timezone = "Asia/Taipei"
 
 write_api = get_write_api()
 
 
-def perform_login(api):
-    if not SHIOAJI_API_KEY:
-        print(">>> ERROR: SHIOAJI_API_KEY not found in .env")
-        return False
-    print(f">>> API Key detected: {SHIOAJI_API_KEY[:4]}****")
-    try:
-        api.login(
-            SHIOAJI_API_KEY,
-            SHIOAJI_SECRET_KEY,
-            contracts_cb=lambda x: print("Contracts loaded."),
-            contracts_timeout=10000,
-        )
-        print(">>> Shioaji Login Called")
-        time.sleep(5)
-        return True
-    except Exception as e:
-        print(f">>> Login Error: {e}")
-        return False
 
-def perform_subscribe(api):
-    print(">>> Subscribing to contracts...")
-    for item in SHIOAJI_FUTURES:
-        try:
-            future_cat = getattr(api.Contracts.Futures, item["category"])
-            contract   = future_cat[item["id"]]
-            api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Quote, version=sj.constant.QuoteVersion.v1)
-        except Exception as e:
-            print(f">>> [Futures] Failed to sub {item.get('id')}: {e}")
-    for item in SHIOAJI_STOCKS:
-        try:
-            contract = api.Contracts.Stocks[item["id"]]
-            api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Quote, version=sj.constant.QuoteVersion.v1)
-        except Exception as e:
-            print(f">>> [Stocks] Failed to sub {item.get('id')}: {e}")
-
-# ── Ingest ────────────────────────────────────────────────────────
-def run_ingest():
-    api = sj.Shioaji(simulation=SHIOAJI_SIMULATION)
-
-    # ── 4. Quote Callbacks ───────────────────────────────────────────────────
-    @api.on_quote_fop_v1()
-    def on_quote_fop(exchange, quote):
-        """處理期貨(Futures) Quote，寫入 Redis Stream"""
-        stream_key = f"{REDIS_STREAM_KEY}:fop:{quote.code}"
-        r.xadd(stream_key, {"price": str(quote.close), "ts": str(int(time.time()))}, maxlen=10000)
-
-    @api.on_quote_stk_v1()
-    def on_quote_stk(exchange, quote):
-        """處理股票(Stock) Quote，寫入 Redis Stream"""
-        stream_key = f"{REDIS_STREAM_KEY}:stk:{quote.code}"
-        r.xadd(stream_key, {"price": str(quote.close), "ts": str(int(time.time()))}, maxlen=10000)
-
-    def check_and_update_status():
-        current_status = r.get(f"{REDIS_STREAM_KEY}:status")
-        try:
-            if current_status != b"connected":
-                perform_login(api)
-            usage = api.usage()
-            r.set(f"{REDIS_STREAM_KEY}:usage_bytes", usage.bytes)
-            r.set(f"{REDIS_STREAM_KEY}:limit_bytes", usage.limit_bytes)
-            print(f">>> [Check] Quota limit: {usage.limit_bytes}, remaining: {usage.remaining_bytes}")
-            
-            # 寫入 InfluxDB monitoring bucket
-            try:
-                point = (
-                    Point("shioaji_usage")
-                    .field("bytes_used", int(usage.bytes))
-                    .field("bytes_limit", int(usage.limit_bytes))
-                    .field("bytes_remaining", int(usage.remaining_bytes))
-                )
-                write_api.write(bucket=INFLUXDB_MONITORING_BUCKET, record=point)
-                print(f">>> [Monitor] Usage written to InfluxDB monitoring bucket")
-            except Exception as influx_err:
-                print(f">>> [Monitor] Failed to write usage to InfluxDB: {influx_err}")
-            
-            if usage.remaining_bytes <= 0:
-                print(">>> [Monitor] Quota = 0, executing logout()...")
-                api.logout()
-                r.set(f"{REDIS_STREAM_KEY}:status", "disconnected")
-            else:
-                if current_status != b"connected":
-                    print(">>> [Monitor] Quota > 0, subscribing...")
-                    perform_subscribe(api)
-                    r.set(f"{REDIS_STREAM_KEY}:status", "connected")
-        except Exception as e:
-            print(f">>> [Monitor] Error checking usage: {e}")
-            r.set(f"{REDIS_STREAM_KEY}:status", "disconnected")
-
-    print(">>> Initializing connection...")
-    check_and_update_status()
-
-    ticks = 0
-    while True:
-        time.sleep(1)
-        ticks += 1
-        
-        # 手動 UI 重連
-        cmd = r.get(f"{REDIS_STREAM_KEY}:cmd")
-        if cmd == b"login":
-            r.delete(f"{REDIS_STREAM_KEY}:cmd")
-            print(">>> [Manual] Reconnect requested.")
-            check_and_update_status()
-            
-        # 每 10 分鐘自動檢查 (600秒)
-        if ticks >= 600:
-            ticks = 0
-            print(">>> [10-min Check] Executing usage check...")
-            check_and_update_status()
 
 
 # ── Aggregation helpers ───────────────────────────────────────────
@@ -201,4 +96,5 @@ def agg_60m():
 
 
 if __name__ == "__main__":
-    run_ingest()
+    from app.api.shioaji import run_shioaji_ingest
+    run_shioaji_ingest()

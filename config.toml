@@ -1,0 +1,34 @@
+[redis]
+host = "redis"
+port = 6379
+db = 0
+stream_key = "tick:txf"
+
+[influxdb]
+url = "http://influxdb:8086"
+
+[app]
+port = 8080
+websocket_path = "/ws"
+
+[shioaji]
+simulation = false
+
+# ── 期貨訂閱清單 ────────────────────────────────────────────────────
+# category: Futures 下的分類名稱（如 TXF、MXF）
+# id:       合約代碼（如 TXFR1 為近月連結期；TXF202506 為指定月份）
+# name:     顯示用名稱
+[[shioaji.futures]]
+category = "MXF"
+id       = "MXFR1"
+name     = "小台指期近月"
+
+
+
+# ── 股票訂閱清單 ────────────────────────────────────────────────────
+# id:   股票代碼
+# name: 顯示用名稱
+[[shioaji.stocks]]
+id   = "2330"
+name = "台積電"
+

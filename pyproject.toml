@@ -1,0 +1,19 @@
+﻿[project]
+name = "txf-pipeline"
+version = "0.1.0"
+description = "台指期即時報價與K線圖資料管線"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "flask>=3.0.0",
+    "shioaji>=1.2.0",
+    "python-dotenv>=1.0.0",
+    "polars>=0.20.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

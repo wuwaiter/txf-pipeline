@@ -830,9 +830,9 @@
             const usageText = document.getElementById('usage-text');
 
             if (data.usage_bytes !== undefined && data.limit_bytes !== undefined) {
-              const usedMB = (data.usage_bytes / 1024 / 1024).toFixed(2);
-              const limitMB = (data.limit_bytes / 1024 / 1024).toFixed(2);
-              usageText.textContent = `${usedMB} / ${limitMB} MB`;
+              const usedKB = (data.usage_bytes / 1024).toFixed(2);
+              const limitKB = (data.limit_bytes / 1024).toFixed(2);
+              usageText.textContent = `${usedKB} / ${limitKB} KB`;
             }
 
             if (data.status === 'connected') {
