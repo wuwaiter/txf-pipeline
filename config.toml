@@ -23,6 +23,10 @@ category = "MXF"
 id       = "MXFR1"
 name     = "小台指期近月"
 
+[[shioaji.futures]]
+category = "MXF"
+id       = "MXFR2"
+name     = "小台指期遠月"
 
 
 # ── 股票訂閱清單 ────────────────────────────────────────────────────

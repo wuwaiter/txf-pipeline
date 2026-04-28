@@ -219,18 +219,24 @@
 
     .cc-price {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 1.35rem;
-      font-weight: 700;
+      font-size: .9rem;
+      font-weight: 600;
       letter-spacing: .02em;
       line-height: 1;
     }
 
-    .cc-change {
-      font-size: .75rem;
+    .cc-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       margin-top: 4px;
+    }
+
+    .cc-change-info {
+      font-size: .8rem;
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
     }
 
     .up {
@@ -239,6 +245,22 @@
 
     .dn {
       color: var(--green);
+    }
+
+    .up-muted {
+      color: #d77a7a;
+    }
+
+    .dn-muted {
+      color: #7ad79a;
+    }
+
+    .flat-muted {
+      color: #d7cd7a;
+    }
+
+    .white-muted {
+      color: #d1d5db;
     }
 
     .flash-up {
@@ -477,7 +499,7 @@
   <header>
     <div class="logo">
       <div class="logo-dot"></div>
-      TXF Pipeline
+      Wade
     </div>
     <div class="header-right">
       <div class="usage-text" id="usage-text"
@@ -498,24 +520,19 @@
 
     <div class="chart-area">
       <div class="chart-header">
-        <div class="chart-title-row">
-          <span id="selected-code" style="color:var(--text-2)">— 選擇合約 —</span>
-          <span id="selected-price" style="color:var(--text-2)">—</span>
-          <span id="selected-change"></span>
-        </div>
         <div class="timeframe-btns">
           <button class="tf-btn active" data-tf="60" id="tf-1m">1m</button>
           <button class="tf-btn" data-tf="300" id="tf-5m">5m</button>
           <button class="tf-btn" data-tf="3600" id="tf-60m">60m</button>
-          <button class="toggle-chart-btn" id="toggle-chart-btn" title="顯示/隱藏K線">
-            <svg id="toggle-chart-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-            <span id="toggle-chart-label">隱藏K線</span>
-          </button>
         </div>
+        <button class="toggle-chart-btn" id="toggle-chart-btn" title="顯示/隱藏K線">
+          <svg id="toggle-chart-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          <span id="toggle-chart-label">隱藏K線</span>
+        </button>
       </div>
 
       <div id="chart-container">
@@ -576,12 +593,31 @@
 
     // ── Chart ────────────────────────────────────────────────────────
     const chartEl = document.getElementById('chart');
+    function customTimeFormatter(time) {
+      const d = new Date(time * 1000);
+      const yyyy = d.getUTCFullYear();
+      const MM = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(d.getUTCDate()).padStart(2, '0');
+      const HH = String(d.getUTCHours()).padStart(2, '0');
+      const mm = String(d.getUTCMinutes()).padStart(2, '0');
+      const ss = String(d.getUTCSeconds()).padStart(2, '0');
+      return `${yyyy}/${MM}/${dd} ${HH}:${mm}:${ss}`;
+    }
+
     const chart = LightweightCharts.createChart(chartEl, {
       layout: { background: { color: '#0b0e17' }, textColor: '#94a3b8' },
       grid: { vertLines: { color: 'rgba(255,255,255,.04)' }, horzLines: { color: 'rgba(255,255,255,.04)' } },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
       rightPriceScale: { borderColor: 'rgba(255,255,255,.07)' },
-      timeScale: { borderColor: 'rgba(255,255,255,.07)', timeVisible: true, secondsVisible: false },
+      timeScale: {
+        borderColor: 'rgba(255,255,255,.07)',
+        timeVisible: true,
+        secondsVisible: true,
+        tickMarkFormatter: customTimeFormatter
+      },
+      localization: {
+        timeFormatter: customTimeFormatter
+      },
       handleScroll: true,
       handleScale: true,
     });
@@ -705,9 +741,20 @@
       codes.forEach(code => {
         const c = state.contracts[code];
         const isActive = code === state.selected;
-        const change = c.firstPrice ? ((c.price - c.firstPrice) / c.firstPrice * 100).toFixed(2) : null;
-        const dir = c.price >= (c.prevPrice || c.price) ? 'up' : 'dn';
-        const arrow = dir === 'up' ? '▲' : '▼';
+
+        const priceDiff = c.price - (c.firstPrice || c.price);
+        const changePct = c.firstPrice ? (Math.abs(priceDiff) / c.firstPrice * 100).toFixed(2) : null;
+        const changeAbs = Math.abs(priceDiff).toFixed(0);
+
+        let dirIcon = '▬';
+        let dirClass = 'flat-muted';
+        if (priceDiff > 0) {
+          dirIcon = '▲';
+          dirClass = 'up-muted';
+        } else if (priceDiff < 0) {
+          dirIcon = '▼';
+          dirClass = 'dn-muted';
+        }
 
         const el = document.createElement('div');
         el.className = `contract-card${isActive ? ' active' : ''}`;
@@ -717,10 +764,12 @@
           <span class="cc-code">${code}</span>
           <span class="cc-market">${c.market === 'futures' ? 'FUT' : 'STK'}</span>
         </div>
-        <div class="cc-price">${c.price.toLocaleString()}</div>
-        <div class="cc-change ${dir}">
-          ${arrow}
-          ${change !== null ? `${Math.abs(change)}%` : '—'}
+        <div class="cc-bottom">
+          <span class="cc-price">${c.price.toLocaleString()}</span>
+          <span class="cc-change-info">
+            <span class="${dirClass}">${dirIcon}</span>
+            <span class="white-muted">${changePct !== null ? `${changePct}% / ${changeAbs}` : '—'}</span>
+          </span>
         </div>
       `;
         el.addEventListener('click', () => selectContract(code));
@@ -730,10 +779,6 @@
 
     function selectContract(code) {
       state.selected = code;
-      const c = state.contracts[code];
-      document.getElementById('selected-code').textContent = code;
-      document.getElementById('selected-code').style.color = '';
-      refreshHeader(code, c.price);
       renderSidebar();
       // 若 K線顯示中，且是支援的 timeframe，抓取完整歷史
       if (state.chartVisible && HISTORY_TF.has(state.tf)) {
@@ -741,17 +786,6 @@
       } else {
         refreshChart();
       }
-    }
-
-    function refreshHeader(code, price) {
-      const c = state.contracts[code];
-      document.getElementById('selected-price').textContent = price.toLocaleString();
-      document.getElementById('selected-price').style.color = '';
-      const change = c.firstPrice ? ((price - c.firstPrice) / c.firstPrice * 100) : 0;
-      const dir = change >= 0;
-      const el = document.getElementById('selected-change');
-      el.textContent = `${dir ? '+' : ''}${change.toFixed(2)}%`;
-      el.className = dir ? 'up' : 'dn';
     }
 
     // ── Tick processor ───────────────────────────────────────────────
@@ -786,7 +820,6 @@
         if (code === state.selected) {
           document.getElementById('stat-time').textContent =
             new Date(ts * 1000).toLocaleTimeString('zh-TW', { hour12: false });
-          refreshHeader(code, price);
         }
       });
 
