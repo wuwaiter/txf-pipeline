@@ -66,13 +66,13 @@ def run_shioaji_ingest():
     def on_tick_fop(exchange, tick):
         """處理期貨(Futures) Tick，寫入 Redis Stream"""
         stream_key = f"{REDIS_STREAM_KEY}:fop:{tick.code}"
-        r.xadd(stream_key, {"price": str(tick.close), "ts": str(int(time.time()))}, maxlen=20000)
+        r.xadd(stream_key, {"price": str(tick.close), "ts": str(int(time.time()))})
 
     @api.on_tick_stk_v1()
     def on_tick_stk(exchange, tick):
         """處理股票(Stock) Tick，寫入 Redis Stream"""
         stream_key = f"{REDIS_STREAM_KEY}:stk:{tick.code}"
-        r.xadd(stream_key, {"price": str(tick.close), "ts": str(int(time.time()))}, maxlen=20000)
+        r.xadd(stream_key, {"price": str(tick.close), "ts": str(int(time.time()))})
 
     def check_and_update_status(write_influx: bool = False):
         """更新連線狀態與使用量。write_influx=True 時才寫入 InfluxDB monitoring bucket。"""
@@ -115,27 +115,6 @@ def run_shioaji_ingest():
     print(">>> Initializing connection...")
     check_and_update_status(write_influx=False)
 
-    def _next_decaminute_sleep() -> float:
-        now = datetime.datetime.now()
-        next_min = ((now.minute // 10) + 1) * 10
-        if next_min >= 60:
-            next_time = (now + datetime.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-        else:
-            next_time = now.replace(minute=next_min, second=0, microsecond=0)
-        return (next_time - now).total_seconds()
-
-    def _schedule_usage_check():
-        while True:
-            sleep_secs = _next_decaminute_sleep()
-            next_fire = datetime.datetime.now() + datetime.timedelta(seconds=sleep_secs)
-            print(f">>> [Usage Thread] Next check at {next_fire.strftime('%H:%M:%S')} (in {sleep_secs:.0f}s)")
-            time.sleep(sleep_secs)
-            print(">>> [10-min Check] Executing usage check...")
-            check_and_update_status(write_influx=True)
-
-    usage_thread = threading.Thread(target=_schedule_usage_check, daemon=True)
-    usage_thread.start()
-
     while True:
         time.sleep(5)
         cmd = r.get(f"{REDIS_STREAM_KEY}:cmd")
@@ -147,3 +126,7 @@ def run_shioaji_ingest():
             r.delete(f"{REDIS_STREAM_KEY}:cmd")
             print(">>> [Page] Usage refresh requested (no InfluxDB write).")
             check_and_update_status(write_influx=False)
+        elif cmd == b"check_usage":
+            r.delete(f"{REDIS_STREAM_KEY}:cmd")
+            print(">>> [Schedule] Executing usage check (write InfluxDB).")
+            check_and_update_status(write_influx=True)
