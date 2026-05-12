@@ -43,8 +43,9 @@ cert/
 # ========================
 # AI Agent 相關
 # ========================
-.agent/
-! .agent/skills/
+.agent/*
+!.agent/skills/
+!.agent/Version/
 
 # ========================
 # Log 與資料庫備份檔案
