@@ -45,19 +45,25 @@ def perform_login(api):
 
 def perform_subscribe(api):
     print(">>> Subscribing to contracts...")
-    for item in SHIOAJI_FUTURES:
-        try:
-            future_cat = getattr(api.Contracts.Futures, item["category"])
-            contract   = future_cat[item["id"]]
-            api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Tick, version=sj.constant.QuoteVersion.v1)
-        except Exception as e:
-            print(f">>> [Futures] Failed to sub {item.get('id')}: {e}")
+    # SHIOAJI_FUTURES: dict[category, list[{id, name}]]
+    for category, contracts in SHIOAJI_FUTURES.items():
+        future_cat = getattr(api.Contracts.Futures, category, None)
+        if future_cat is None:
+            print(f">>> [Futures] Unknown category: {category}")
+            continue
+        for item in contracts:
+            try:
+                contract = future_cat[item["id"]]
+                api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Tick, version=sj.constant.QuoteVersion.v1)
+            except Exception as e:
+                print(f">>> [Futures/{category}] Failed to sub {item.get('id')}: {e}")
     for item in SHIOAJI_STOCKS:
         try:
             contract = api.Contracts.Stocks[item["id"]]
             api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Tick, version=sj.constant.QuoteVersion.v1)
         except Exception as e:
             print(f">>> [Stocks] Failed to sub {item.get('id')}: {e}")
+
 
 def run_shioaji_ingest():
     api = sj.Shioaji(simulation=SHIOAJI_SIMULATION)

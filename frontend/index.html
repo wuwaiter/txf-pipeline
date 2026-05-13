@@ -588,8 +588,8 @@
       chartVisible: true,  // K線顯示狀態
     };
 
-    // Timeframes that support full history fetch from Redis
-    const HISTORY_TF = new Set([60, 300]);
+    // Timeframes that support full history fetch from Redis/InfluxDB
+    const HISTORY_TF = new Set([60, 300, 3600]);
 
     // ── Chart ────────────────────────────────────────────────────────
     const chartEl = document.getElementById('chart');
@@ -677,9 +677,9 @@
       }
     }
 
-    // ── Fetch historical candles from Redis (1m / 5m only) ───────────
+    // ── Fetch historical candles from Backend (1m / 5m / 60m) ───────────
     async function fetchHistoricalCandles(code, tf) {
-      if (!HISTORY_TF.has(tf)) return;   // 60m 不支援歷史抓取
+      if (!HISTORY_TF.has(tf)) return;
       try {
         const resp = await fetch(`/api/candles?code=${encodeURIComponent(code)}&tf=${tf}`);
         if (!resp.ok) return;
@@ -746,13 +746,13 @@
         const changePct = c.firstPrice ? (Math.abs(priceDiff) / c.firstPrice * 100).toFixed(2) : null;
         const changeAbs = Math.abs(priceDiff).toFixed(0);
 
-        let dirIcon = '▬';
+        let dirIcon = '•';
         let dirClass = 'flat-muted';
         if (priceDiff > 0) {
-          dirIcon = '▲';
+          dirIcon = '•';
           dirClass = 'up-muted';
         } else if (priceDiff < 0) {
-          dirIcon = '▼';
+          dirIcon = '•';
           dirClass = 'dn-muted';
         }
 

@@ -22,7 +22,7 @@ FOP_PREFIX = f"{REDIS_STREAM_KEY}:fop:"
 STK_PREFIX = f"{REDIS_STREAM_KEY}:stk:"
 
 # Supported timeframes for historical candle fetch (seconds)
-SUPPORTED_HISTORY_TF = {60, 300}
+SUPPORTED_HISTORY_TF = {60, 300, 3600}
 
 
 def _get_latest_ticks() -> list[dict]:
@@ -91,9 +91,12 @@ def _build_candles_from_stream(stream_key: str, tf: int) -> list[dict]:
     # 1. Base candles from InfluxDB (last 60)
     candles = _fetch_from_influx(code, tf)
     
-    # 2. Overlay intra-period updates & newest ticks from Redis stream
+    # 2. Overlay intra-period updates & newest ticks from Redis stream (only for current candle)
+    now_ts = int(time.time())
+    current_bucket_start_ms = (now_ts // tf) * tf * 1000
     try:
-        raw = r.xrange(stream_key, min="-", max="+")
+        # 只抓取當前 K 線時間範圍內的 ticks
+        raw = r.xrange(stream_key, min=f"{current_bucket_start_ms}-0", max="+")
     except Exception as e:
         print(f"Redis xrange error: {e}")
         raw = []
@@ -137,7 +140,7 @@ def api_reconnect():
 @app.route("/api/candles")
 def api_candles():
     """
-    回傳指定合約的完整 K 線資料（僅支援 1分/5分）。
+    回傳指定合約的完整 K 線資料（支援 1分/5分/60分）。
     Query params:
         code  — 合約代碼 (e.g. TXFB5)
         tf    — timeframe in seconds (60 or 300)

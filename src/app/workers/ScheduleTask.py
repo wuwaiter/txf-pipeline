@@ -84,7 +84,7 @@ def _aggregate_and_write(seconds: int, interval: str):
 # ── Celery tasks ──────────────────────────────────────────────────
 @celery_app.task
 def trim_streams():
-    """定期清理 Redis Stream，維持約 100,000 筆最新報價"""
+    """定期清理 Redis Stream，維持約 10,000 筆最新報價"""
     fop_prefix = f"{REDIS_STREAM_KEY}:fop:".encode()
     stk_prefix = f"{REDIS_STREAM_KEY}:stk:".encode()
 
@@ -93,8 +93,8 @@ def trim_streams():
         for b_key in r.scan_iter(f"{REDIS_STREAM_KEY}:*"):
             if b_key.startswith(fop_prefix) or b_key.startswith(stk_prefix):
                 try:
-                    # ~100,000: 大約保留的大小
-                    r.xtrim(b_key, maxlen=100000, approximate=True)
+                    # ~10,000: 大約保留的大小
+                    r.xtrim(b_key, maxlen=10000, approximate=True)
                 except Exception as e:
                     print(f"Failed to trim {b_key.decode()}: {e}")
     except Exception as e:

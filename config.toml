@@ -15,24 +15,15 @@ websocket_path = "/ws"
 simulation = false
 
 # ── 期貨訂閱清單 ────────────────────────────────────────────────────
+# futures.<category> = [{id, name}, ...]
 # category: Futures 下的分類名稱（如 TXF、MXF）
-# id:       合約代碼（如 TXFR1 為近月連結期；TXF202506 為指定月份）
+# id:       合約代碼/股票代碼 （如 MXFR1 為近月連結期；MXFR2 為遠月連結期）
 # name:     顯示用名稱
-[[shioaji.futures]]
-category = "MXF"
-id       = "MXFR1"
-name     = "小台指期近月"
-
-[[shioaji.futures]]
-category = "MXF"
-id       = "MXFR2"
-name     = "小台指期遠月"
-
-
-# ── 股票訂閱清單 ────────────────────────────────────────────────────
-# id:   股票代碼
-# name: 顯示用名稱
-[[shioaji.stocks]]
-id   = "2330"
-name = "台積電"
-
+futures.MXF = [
+  { id = "MXFR1", name = "小台指期近月" },
+  { id = "MXFR2", name = "小台指期遠月" },
+]
+stocks = [
+  { id = "2330", name = "台積電" },
+  { id = "2317", name = "鴻海" },
+]
