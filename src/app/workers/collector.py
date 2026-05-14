@@ -214,5 +214,5 @@ def agg_60m():
 
 
 if __name__ == "__main__":
-    from app.api.shioaji import run_shioaji_ingest
+    from app.workers.shioaji import run_shioaji_ingest
     run_shioaji_ingest()

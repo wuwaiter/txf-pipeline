@@ -1,28 +1,48 @@
 ---
 name: "Example Project Skill"
-description: "這是一個 Skill 的範例。您可以在這裡定義專屬此專案的特定操作流程、常規任務或除錯指南。"
+description: "這是一個專案的範例。在這裡定義專案的特定操作流程、常規任務或除錯指南。"
 ---
 
 # Example Skill — 技能設計分析
-
-## 專案概述
-
-- **名稱**：Example Project Skill
-- **目的**：提供 Skill 範本與基礎規範，作為 AI 助手處理專案特定任務時的標準、依循教材或指令指引。
-
 ## 目錄結構
-
-除了這份主設定檔外，同目錄下（例如 `.agent/skills/example-skill/`）亦可支援配置資源資料夾：
-
 ```text
-example-skill/
-├── SKILL.md      # 核心行為規範與指南
-├── scripts/      # 放置自動執行指令碼 (.sh 或 .py 等)
-├── examples/     # 放置程式碼重構或設計模式的參考檔案
-└── resources/    # 放置輔助文件或專案模板
+txf-pipeline/
+├── .agent/                         # Agent 規範與 Skill 定義
+│   └── skills/
+│       ├── SKILL.md                # Skills 索引
+├── cert/                           # 憑證與私鑰（不進版控）
+├── config/                         # 各服務掛載用設定檔
+├── docker/                         # Dockerfile（映像建置定義）
+├── frontend/                       # 前端 SPA（原生 HTML/CSS/JS）
+│   └── index.html
+├── md/                             # 專案文件（README 除外）
+│   ├── Version.md                  # 版本歷史記錄
+│   └── project.md                  # 系統架構圖
+├── src/
+│   └── app/
+│       ├── __init__.py
+│       ├── config.py               # 統一讀取 .env 與 config.toml
+│       ├── main.py                 # Flask App + WebSocket 入口
+│       ├── api/
+│       ├── services/
+│       │   ├── redis_client.py     # Redis 連線封裝
+│       │   └── influx_client.py    # InfluxDB 連線封裝
+│       └── workers/
+│           ├── collector.py        # Celery 排程 + OHLC 聚合 + 寫入 InfluxDB
+│           └── ScheduleTask.py     # 排程任務定義
+│
+├── tests/                          # 測試（待補充）
+├── .env                            # 敏感資料（API Key、DB 帳密），不進版控
+├── .gitignore
+├── config.toml                     # 系統參數（Port、Host、訂閱清單等）
+├── docker-compose.yml              # 全服務啟動定義
+├── pyproject.toml                  # Python 專案設定
+├── requirements.txt                # 正式依賴
+├── requirements-dev.txt            # 開發依賴
+└── README.md                       # 專案說明（保留於根目錄）
 ```
 
-## 核心邏輯
+## 核心邏輯 
 
 ### 當觸發此 Skill 時的行為守則
 1. **程式碼風格**：強制遵守專案內特有之命名與排版要求。

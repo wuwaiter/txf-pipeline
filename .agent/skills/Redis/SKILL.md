@@ -1,5 +1,5 @@
 ---
-name: "Redis Stream 操作規範"
+name: "Redis 操作規範"
 description: "Redis Stream 的通用操作模式：xadd 寫入、xrange/xrevrange 讀取、Key 掃描過濾與 decode_responses 選擇。"
 ---
 
@@ -7,9 +7,7 @@ description: "Redis Stream 的通用操作模式：xadd 寫入、xrange/xrevrang
 
 ## 概述
 
-Redis Stream 是一種僅附加（append-only）的日誌型資料結構，適合作為事件佇列或時序資料通道。本專案透過 `src/app/services/redis_client.py` 的 `get_redis_client()` 取得連線。
-
-> 本專案的 Key 命名規則、Stream 資料結構與指令集，定義於 `txf-architecture/SKILL.md` 的「Redis 資料層規範」章節。
+Redis Stream 是一種僅附加（append-only）的日誌型資料結構，適合作為事件佇列或時序資料通道。專案特定的 Key 命名規則、資料結構與指令集，定義於各專案專屬 Skill 中。
 
 ---
 

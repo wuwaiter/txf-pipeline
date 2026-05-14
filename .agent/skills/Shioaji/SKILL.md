@@ -6,7 +6,6 @@ description: "定義Shioaji API (永豐金 API) 的串接規則"
 # Shioajii API — 技能設計分析
 
 ## 專案概述
-
 - **名稱**：Shioajii (永豐證券/期貨 API 串接規章)
 - **來源**：https://sinotrade.github.io/shioaji/
 - **目的**：定義 Shioaji API 登入、訂閱即時報價(Quote)與取得快照歷史資料的標準流程。
@@ -14,7 +13,6 @@ description: "定義Shioaji API (永豐金 API) 的串接規則"
 
 
 ## 技術堆疊
-
 - **核心套件**：`shioaji` (永豐金 Python API)
 - **環境管理**：`python-dotenv` (讀取 `.env` 中的帳密)
 - **非同步與併發**：`threading` (將 Shioaji 執行緒與 Flask 主執行緒分離)

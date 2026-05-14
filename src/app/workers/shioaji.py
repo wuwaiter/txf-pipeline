@@ -8,6 +8,8 @@ Shioaji API 服務，負責：
 4. 處理手動重連與頁面刷新的指令
 """
 import time
+import logging
+import os
 import threading
 import datetime
 import shioaji as sj
@@ -20,6 +22,15 @@ from app.config import (
 )
 from app.services.redis_client import get_redis_client
 from app.services.influx_client import get_write_api
+
+# ── Logging：將 shioaji 套件 log 輸出導向 logs/ 資料夾 ──────────────
+_LOG_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "logs")
+os.makedirs(_LOG_DIR, exist_ok=True)
+_log_handler = logging.FileHandler(os.path.join(_LOG_DIR, "shioaji.log"))
+_log_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+logging.getLogger("shioaji").addHandler(_log_handler)
+logging.getLogger("shioaji").setLevel(logging.INFO)
+# ─────────────────────────────────────────────────────────────────────
 
 r = get_redis_client(decode_responses=False)
 write_api = get_write_api()
@@ -91,7 +102,7 @@ def run_shioaji_ingest():
             r.set(f"{REDIS_STREAM_KEY}:usage_bytes", used_bytes)
             r.set(f"{REDIS_STREAM_KEY}:limit_bytes", usage.limit_bytes)
             print(f">>> [Check] bytes={usage.bytes}, remaining_bytes={usage.remaining_bytes}, limit={usage.limit_bytes} | write_influx={write_influx}")
-            
+
             if write_influx:
                 try:
                     point = (
@@ -104,7 +115,7 @@ def run_shioaji_ingest():
                     print(f">>> [Monitor] Usage written to InfluxDB monitoring bucket")
                 except Exception as influx_err:
                     print(f">>> [Monitor] Failed to write usage to InfluxDB: {influx_err}")
-            
+
             if usage.remaining_bytes <= 0:
                 print(">>> [Monitor] Quota = 0, executing logout()...")
                 api.logout()

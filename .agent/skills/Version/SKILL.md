@@ -1,7 +1,9 @@
 # Version Management Skill
+---
+name: "Project/Skill version history definition"
+description: "This skill defines the version history of a project/skill, and also define version history workflow. The documentation for version history of a project/skill is under `md/Version.md`"
+---
 
-## Purpose
-Track project version history and maintain documentation under `md/Version.md`.
 
 ## Convention
 

@@ -26,7 +26,7 @@ description: 定義 TXF Pipeline 前端 UI 風格規範，包含深色系 Design
 | `--bg-2` | 第二層，Badge、狀態指示背景 |
 | `--bg-3` | 第三層，Hover 狀態、Active 元件背景 |
 
-> 實際色票值見 `txf-architecture/SKILL.md`。
+> 實際色票值由各專案定義於專案專屬 Skill 中。
 
 ### 文字色階
 
@@ -45,7 +45,7 @@ description: 定義 TXF Pipeline 前端 UI 風格規範，包含深色系 Design
 | `--green` | 正面狀態（連線成功、特定價格方向） |
 | `--red` | 負面狀態（錯誤、斷線、特定價格方向） |
 
-> `.up` / `.dn` 對應哪個顏色，由各專案市場慣例決定，見 `txf-architecture/SKILL.md`。
+> `.up` / `.dn` 對應哪個顏色，由各專案市場慣例決定，定義於各專案專屬 Skill 中。
 
 ### 邊框與圓角
 
@@ -219,14 +219,14 @@ animation: pulse 2s infinite;
 animation: flash-up .4s ease;
 ```
 
-> `flash-up` / `flash-dn` 對應的實際顏色由市場慣例決定，見 `txf-architecture/SKILL.md`。
+> `flash-up` / `flash-dn` 對應的實際顏色由市場慣例決定，定義於各專案專屬 Skill 中。
 
 ---
 
 ## 版面與間距
 
 - **Header**：`padding: 14px 28px`，`position: sticky; top: 0; z-index: 100`，`backdrop-filter: blur(12px)`
-- **主佈局**：`display: grid; grid-template-columns: <sidebar-width> 1fr`（寬度見 txf-architecture）
+- **主佈局**：`display: grid; grid-template-columns: <sidebar-width> 1fr`（sidebar 寬度由各專案自行定義）
 - **區塊間隔**：`gap: 0`（靠 border 分隔）
 - **捲軸樣式**：
 
@@ -268,3 +268,4 @@ animation: flash-up .4s ease;
 - [ ] 狀態指示點（dot）使用 connected / error class 切換
 - [ ] 新增動畫時長 ≤ 0.5s（pulse 除外）
 - [ ] Overlay 加上 `pointer-events: none`
+

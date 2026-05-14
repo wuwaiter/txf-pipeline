@@ -46,11 +46,13 @@ cert/
 .agent/*
 !.agent/skills/
 !.agent/Version/
+.claude/
 
 # ========================
 # Log 與資料庫備份檔案
 # ========================
-logs/
+logs/*
+!logs/.gitkeep
 *.log
 *.sqlite3
 

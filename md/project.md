@@ -1,72 +1,73 @@
+# TXF Pipeline — 系統架構
+
+```mermaid
 graph TB
 %% === STYLES ===
-classDef core fill:#1E90FF,stroke:#000,color:#000,stroke-width:2px,rx:10px,ry:10px;
-classDef db fill:#9ACD32,stroke:#000,color:#000,stroke-width:2px,rx:10px,ry:10px;
-classDef external fill:#FFD700,stroke:#000,color:#000,stroke-width:2px,rx:10px,ry:10px;
-classDef worker fill:#DA70D6,stroke:#000,color:#000,stroke-width:2px,rx:10px,ry:10px;
+classDef core    fill:#1E90FF,stroke:#000,color:#000,stroke-width:2px;
+classDef db      fill:#9ACD32,stroke:#000,color:#000,stroke-width:2px;
+classDef external fill:#FFD700,stroke:#000,color:#000,stroke-width:2px;
+classDef worker  fill:#DA70D6,stroke:#000,color:#000,stroke-width:2px;
 
-%% === USERS ===
-User(("Frontend User<br/>Web Interface"))
+%% === USER ===
+User(("Browser\nFrontend User"))
 
-%% === DATA INGESTION LAYER ===
-subgraph "Data Ingestion Layer"
-  IngestService["Python Ingest Service<br/>Collects tick data"]:::core
+%% === EXTERNAL DATA SOURCE ===
+subgraph "External"
+  ShioajiAPI["Shioaji API\n永豐金行情來源"]:::external
 end
 
-%% === MESSAGE BROKER ===
-subgraph "Message Broker"
-  Redis["Redis<br/>In-memory Message Broker"]:::db
+%% === DOCKER: python-ingest ===
+subgraph "python-ingest"
+  Shioaji["shioaji.py\nLogin / Subscribe / Ingest"]:::worker
 end
 
-%% === WEBSOCKET STREAMING SERVER ===
-subgraph "WebSocket Streaming Server"
-  WSService["Rust WebSocket Server<br/>Streams tick data"]:::core
+%% === DOCKER: celery-beat + celery-worker ===
+subgraph "celery-beat + celery-worker"
+  CeleryBeat["Celery Beat\n排程觸發"]:::worker
+  CeleryWorker["Celery Worker\nOHLC 聚合 1m / 5m / 60m"]:::worker
 end
 
-%% === DATA PROCESSING AND STORAGE ===
-subgraph "Data Processing and Storage"
-  TaskService["Python Task Service<br/>Aggregates tick data"]:::core
-  InfluxDB["InfluxDB<br/>Time-series Database"]:::db
+%% === DOCKER: flask-web ===
+subgraph "flask-web"
+  FlaskApp["Flask App · main.py\nREST API + WebSocket"]:::core
+  Frontend["frontend/index.html\nLightweight Charts SPA"]:::core
 end
 
-%% === TASK SCHEDULING ===
-subgraph "Task Scheduling"
-  CeleryService["Celery<br/>Task Scheduler"]:::core
+%% === DOCKER: redis ===
+subgraph "redis"
+  Redis["Redis\nStream · tick:txf:fop/<stk>:&lt;code&gt;\nString · status / cmd / usage"]:::db
 end
 
-%% === FRONTEND WEB INTERFACE ===
-subgraph "Frontend Web Interface"
-  Frontend["Frontend HTML Page<br/>Visualizes candlestick data"]:::core
+%% === DOCKER: influxdb ===
+subgraph "influxdb"
+  InfluxDB["InfluxDB\ntxf bucket · OHLC K 線\nmonitoring bucket · 流量"]:::db
 end
 
-%% === WEB SERVER ===
-subgraph "Web Server"
-  Nginx["Nginx<br/>Serves static files and proxies WebSocket"]:::core
+%% === DOCKER: grafana ===
+subgraph "grafana"
+  Grafana["Grafana\nDashboards"]:::core
 end
 
 %% === DATA FLOW ===
-User -->|"WebSocket connection"| Nginx
-Nginx -->|"proxies WebSocket"| WSService
-IngestService -->|"tick data"| Redis
-Redis -->|"latest tick data"| WSService
-WSService -->|"streams tick data"| User
-CeleryService -->|"scheduled tasks"| TaskService
-TaskService -->|"aggregates tick data"| Redis
-TaskService -->|"stores OHLC data"| InfluxDB
-Frontend -->|"receives tick data"| WSService
-Frontend -->|"visualizes data"| InfluxDB
-InfluxDB -->|"historical data"| Grafana
+ShioajiAPI  -->|"tick callbacks"| Shioaji
+Shioaji     -->|"xadd tick data"| Redis
+Shioaji     -->|"set status / usage"| Redis
+Redis       -->|"cmd channel (poll 5s)"| Shioaji
 
-%% === EXTERNAL DEPENDENCIES ===
-subgraph "External Dependencies"
-  ShioajiAPI["Shioaji API<br/>Financial Data Source"]:::external
-end
+CeleryBeat  -->|"schedule"| CeleryWorker
+CeleryWorker -->|"xrange ticks"| Redis
+CeleryWorker -->|"write OHLC Point"| InfluxDB
+CeleryWorker -->|"write usage (monitoring)"| InfluxDB
 
-IngestService -->|"collects data"| ShioajiAPI
+FlaskApp    -->|"xrevrange latest tick (0.5s)"| Redis
+FlaskApp    -->|"WebSocket push"| User
+FlaskApp    -->|"Flux query · 歷史 OHLC"| InfluxDB
+FlaskApp    -->|"serve static"| Frontend
 
-%% === GRAFANA ===
-subgraph "Visualization"
-  Grafana["Grafana<br/>Dashboards for data visualization"]:::core
-end
+User        -->|"WebSocket /ws"| FlaskApp
+User        -->|"GET /api/candles?code=&tf="| FlaskApp
+User        -->|"POST /api/reconnect"| FlaskApp
+FlaskApp    -->|"set cmd=login"| Redis
 
-Grafana -->|"visualizes OHLC data"| InfluxDB
+InfluxDB    -->|"data source"| Grafana
+```
