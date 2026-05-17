@@ -491,6 +491,234 @@
       background: var(--bg-3);
       border-radius: 4px;
     }
+
+    /* ── Subscription gear button ── */
+    .sidebar-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px 10px;
+    }
+
+    .sidebar-title-row .sidebar-title {
+      padding: 0;
+    }
+
+    .sub-manage-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-3);
+      cursor: pointer;
+      transition: all .15s;
+      flex-shrink: 0;
+    }
+
+    .sub-manage-btn:hover {
+      background: var(--bg-3);
+      color: var(--text-1);
+      border-color: rgba(255,255,255,.15);
+    }
+
+    /* ── Modal overlay ── */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(11, 14, 23, .75);
+      backdrop-filter: blur(6px);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-backdrop.active {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--bg-1);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      width: 480px;
+      max-width: calc(100vw - 40px);
+      max-height: calc(100vh - 80px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-header h2 {
+      font-size: .95rem;
+      font-weight: 600;
+      color: var(--text-1);
+    }
+
+    .modal-close {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-3);
+      cursor: pointer;
+      transition: all .15s;
+      font-size: 1rem;
+    }
+
+    .modal-close:hover {
+      background: var(--bg-3);
+      color: var(--text-1);
+    }
+
+    .modal-body {
+      overflow-y: auto;
+      flex: 1;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .sub-section-title {
+      font-size: .7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--text-3);
+      margin-bottom: 8px;
+    }
+
+    .sub-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: var(--bg-2);
+      margin-bottom: 4px;
+    }
+
+    .sub-item-cat {
+      font-size: .65rem;
+      padding: 2px 6px;
+      border-radius: 8px;
+      background: var(--bg-3);
+      color: var(--text-3);
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    .sub-item-id {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--text-1);
+      flex-shrink: 0;
+    }
+
+    .sub-item-name {
+      font-size: .8rem;
+      color: var(--text-2);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sub-del-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      border: 1px solid rgba(239,68,68,.3);
+      background: transparent;
+      color: var(--red);
+      cursor: pointer;
+      font-size: .85rem;
+      line-height: 1;
+      transition: all .15s;
+      flex-shrink: 0;
+    }
+
+    .sub-del-btn:hover {
+      background: rgba(239,68,68,.15);
+    }
+
+    .sub-add-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    .sub-add-row input {
+      flex: 1;
+      min-width: 60px;
+      padding: 6px 10px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: var(--bg-2);
+      color: var(--text-1);
+      font-size: .8rem;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: border-color .15s;
+    }
+
+    .sub-add-row input:focus {
+      border-color: var(--accent);
+    }
+
+    .sub-add-row input::placeholder {
+      color: var(--text-3);
+    }
+
+    .sub-add-btn {
+      padding: 6px 14px;
+      border-radius: 7px;
+      border: 1px solid var(--accent);
+      background: transparent;
+      color: var(--accent);
+      font-size: .8rem;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+
+    .sub-add-btn:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .sub-msg {
+      font-size: .75rem;
+      padding: 4px 0;
+      min-height: 18px;
+      color: var(--text-3);
+    }
+
+    .sub-msg.ok  { color: var(--green); }
+    .sub-msg.err { color: var(--red); }
   </style>
 </head>
 
@@ -514,9 +742,29 @@
 
   <main>
     <aside>
-      <div class="sidebar-title">期貨 / 股票</div>
+      <div class="sidebar-title-row">
+        <div class="sidebar-title">期貨 / 股票</div>
+        <button class="sub-manage-btn" id="sub-manage-btn" title="訂閱管理">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+      </div>
       <div id="contract-list"></div>
     </aside>
+
+    <!-- ── 訂閱管理 Modal ── -->
+    <div class="modal-backdrop" id="sub-modal-backdrop">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>訂閱管理</h2>
+          <button class="modal-close" id="sub-modal-close">✕</button>
+        </div>
+        <div class="modal-body" id="sub-modal-body">
+          <div style="color:var(--text-3);font-size:.85rem">載入中…</div>
+        </div>
+      </div>
+    </div>
 
     <div class="chart-area">
       <div class="chart-header">
@@ -899,6 +1147,176 @@
     }
 
     connect();
+
+    // ── 訂閱管理 Modal ───────────────────────────────────────────────
+    const subBackdrop = document.getElementById('sub-modal-backdrop');
+    const subBody     = document.getElementById('sub-modal-body');
+
+    function openSubModal() {
+      subBackdrop.classList.add('active');
+      loadSubModal();
+    }
+
+    function closeSubModal() {
+      subBackdrop.classList.remove('active');
+    }
+
+    document.getElementById('sub-manage-btn').addEventListener('click', openSubModal);
+    document.getElementById('sub-modal-close').addEventListener('click', closeSubModal);
+    subBackdrop.addEventListener('click', e => { if (e.target === subBackdrop) closeSubModal(); });
+
+    async function loadSubModal() {
+      subBody.innerHTML = '<div style="color:var(--text-3);font-size:.85rem">載入中…</div>';
+      try {
+        const resp = await fetch('/api/subscriptions');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        renderSubModal(data);
+      } catch (e) {
+        subBody.innerHTML = `<div style="color:var(--red);font-size:.85rem">載入失敗：${e.message}</div>`;
+      }
+    }
+
+    function renderSubModal(data) {
+      const futures = data.futures || {};
+      const stocks  = data.stocks  || [];
+      let html = '';
+
+      // ── 期貨區塊 ──────────────────────────────────────────────────
+      html += `<div>
+        <div class="sub-section-title">期貨 Futures</div>`;
+      for (const [cat, items] of Object.entries(futures)) {
+        for (const item of items) {
+          html += `
+          <div class="sub-item">
+            <span class="sub-item-cat">${escHtml(cat)}</span>
+            <span class="sub-item-id">${escHtml(item.id)}</span>
+            <span class="sub-item-name">${escHtml(item.name)}</span>
+            <button class="sub-del-btn"
+              data-type="futures" data-id="${escAttr(item.id)}"
+              title="移除 ${escAttr(item.id)}">−</button>
+          </div>`;
+        }
+      }
+      if (Object.keys(futures).length === 0) {
+        html += `<div style="color:var(--text-3);font-size:.8rem;padding:4px 0">（尚無期貨訂閱）</div>`;
+      }
+      html += `
+        <div class="sub-add-row">
+          <input id="fut-cat"  placeholder="類別 (MXF)" style="max-width:100px">
+          <input id="fut-id"   placeholder="代碼 (MXFR1)" style="max-width:120px">
+          <input id="fut-name" placeholder="名稱">
+          <button class="sub-add-btn" id="fut-add-btn">+ 新增</button>
+        </div>
+        <div class="sub-msg" id="fut-msg"></div>
+      </div>`;
+
+      // ── 股票區塊 ──────────────────────────────────────────────────
+      html += `<div>
+        <div class="sub-section-title">股票 Stocks</div>`;
+      for (const item of stocks) {
+        html += `
+          <div class="sub-item">
+            <span class="sub-item-id">${escHtml(item.id)}</span>
+            <span class="sub-item-name">${escHtml(item.name)}</span>
+            <button class="sub-del-btn"
+              data-type="stocks" data-id="${escAttr(item.id)}"
+              title="移除 ${escAttr(item.id)}">−</button>
+          </div>`;
+      }
+      if (stocks.length === 0) {
+        html += `<div style="color:var(--text-3);font-size:.8rem;padding:4px 0">（尚無股票訂閱）</div>`;
+      }
+      html += `
+        <div class="sub-add-row">
+          <input id="stk-id"   placeholder="代碼 (2330)" style="max-width:120px">
+          <input id="stk-name" placeholder="名稱">
+          <button class="sub-add-btn" id="stk-add-btn">+ 新增</button>
+        </div>
+        <div class="sub-msg" id="stk-msg"></div>
+      </div>`;
+
+      subBody.innerHTML = html;
+
+      // ── 刪除按鈕 ─────────────────────────────────────────────────
+      subBody.querySelectorAll('.sub-del-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const type = btn.dataset.type;
+          const id   = btn.dataset.id;
+          btn.disabled = true;
+          try {
+            const resp = await fetch('/api/subscriptions', {
+              method: 'DELETE',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ type, id }),
+            });
+            const result = await resp.json();
+            if (!resp.ok) throw new Error(result.error || 'error');
+            loadSubModal();  // 重新整理
+          } catch (e) {
+            btn.disabled = false;
+            showSubMsg(type === 'futures' ? 'fut-msg' : 'stk-msg', '刪除失敗：' + e.message, 'err');
+          }
+        });
+      });
+
+      // ── 新增期貨 ──────────────────────────────────────────────────
+      document.getElementById('fut-add-btn').addEventListener('click', async () => {
+        const cat  = document.getElementById('fut-cat').value.trim();
+        const id   = document.getElementById('fut-id').value.trim();
+        const name = document.getElementById('fut-name').value.trim();
+        if (!cat || !id || !name) {
+          return showSubMsg('fut-msg', '請填寫類別、代碼與名稱', 'err');
+        }
+        try {
+          const resp = await fetch('/api/subscriptions', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ type: 'futures', category: cat, id, name }),
+          });
+          const result = await resp.json();
+          if (!resp.ok) throw new Error(result.error || 'error');
+          loadSubModal();
+        } catch (e) {
+          showSubMsg('fut-msg', '新增失敗：' + e.message, 'err');
+        }
+      });
+
+      // ── 新增股票 ──────────────────────────────────────────────────
+      document.getElementById('stk-add-btn').addEventListener('click', async () => {
+        const id   = document.getElementById('stk-id').value.trim();
+        const name = document.getElementById('stk-name').value.trim();
+        if (!id || !name) {
+          return showSubMsg('stk-msg', '請填寫代碼與名稱', 'err');
+        }
+        try {
+          const resp = await fetch('/api/subscriptions', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ type: 'stocks', id, name }),
+          });
+          const result = await resp.json();
+          if (!resp.ok) throw new Error(result.error || 'error');
+          loadSubModal();
+        } catch (e) {
+          showSubMsg('stk-msg', '新增失敗：' + e.message, 'err');
+        }
+      });
+    }
+
+    function showSubMsg(elId, msg, cls = '') {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      el.textContent = msg;
+      el.className = 'sub-msg' + (cls ? ' ' + cls : '');
+      setTimeout(() => { if (el.textContent === msg) { el.textContent = ''; el.className = 'sub-msg'; } }, 4000);
+    }
+
+    function escHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function escAttr(s) { return escHtml(s); }
   </script>
 </body>
 

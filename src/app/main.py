@@ -2,6 +2,9 @@ import os
 import time
 import json
 import math
+import threading
+import tomli
+import tomli_w
 from flask import Flask, send_from_directory, jsonify, request
 from flask_sock import Sock
 
@@ -23,6 +26,24 @@ STK_PREFIX = f"{REDIS_STREAM_KEY}:stk:"
 
 # Supported timeframes for historical candle fetch (seconds)
 SUPPORTED_HISTORY_TF = {60, 300, 3600}
+
+# config.toml 路徑 + 讀寫鎖
+_TOML_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "config.toml"))
+_toml_lock = threading.Lock()
+
+
+def _read_toml() -> dict:
+    """讀取 config.toml，回傳完整 dict。"""
+    with open(_TOML_PATH, "rb") as f:
+        return tomli.load(f)
+
+
+def _write_toml(data: dict) -> None:
+    """將 dict 寫回 config.toml（原子性：先寫暫存再 rename）。"""
+    tmp_path = _TOML_PATH + ".tmp"
+    with open(tmp_path, "wb") as f:
+        tomli_w.dump(data, f)
+    os.replace(tmp_path, _TOML_PATH)
 
 
 def _get_latest_ticks() -> list[dict]:
@@ -134,6 +155,110 @@ def api_streams():
 def api_reconnect():
     """手動發出重新連線指令給 collector"""
     r.set(f"{REDIS_STREAM_KEY}:cmd", "login")
+    return jsonify({"success": True})
+
+
+@app.route("/api/subscriptions", methods=["GET"])
+def api_subscriptions_get():
+    """回傳目前 config.toml 中的訂閱清單 {futures: {...}, stocks: [...]}"""
+    with _toml_lock:
+        cfg = _read_toml()
+    shioaji_cfg = cfg.get("shioaji", {})
+    return jsonify({
+        "futures": shioaji_cfg.get("futures", {}),
+        "stocks": shioaji_cfg.get("stocks", []),
+    })
+
+
+@app.route("/api/subscriptions", methods=["POST"])
+def api_subscriptions_add():
+    """
+    新增一筆訂閱並即時生效。
+    Body JSON：
+      { "type": "futures"|"stocks", "category": "MXF"(futures only), "id": "MXFR1", "name": "小台指近月" }
+    """
+    body = request.get_json(silent=True) or {}
+    sub_type = body.get("type", "")
+    sub_id = (body.get("id") or "").strip()
+    sub_name = (body.get("name") or "").strip()
+
+    if sub_type not in ("futures", "stocks"):
+        return jsonify({"error": "type must be 'futures' or 'stocks'"}), 400
+    if not sub_id:
+        return jsonify({"error": "id is required"}), 400
+    if not sub_name:
+        return jsonify({"error": "name is required"}), 400
+
+    with _toml_lock:
+        cfg = _read_toml()
+        if "shioaji" not in cfg:
+            cfg["shioaji"] = {}
+
+        if sub_type == "futures":
+            category = (body.get("category") or "").strip()
+            if not category:
+                return jsonify({"error": "category is required for futures"}), 400
+            futures_cfg: dict = cfg["shioaji"].setdefault("futures", {})
+            cat_list: list = futures_cfg.setdefault(category, [])
+            # 檢查重複
+            if any(item["id"] == sub_id for item in cat_list):
+                return jsonify({"error": f"{sub_id} already exists in {category}"}), 409
+            cat_list.append({"id": sub_id, "name": sub_name})
+        else:
+            stocks_list: list = cfg["shioaji"].setdefault("stocks", [])
+            if any(item["id"] == sub_id for item in stocks_list):
+                return jsonify({"error": f"{sub_id} already exists in stocks"}), 409
+            stocks_list.append({"id": sub_id, "name": sub_name})
+
+        _write_toml(cfg)
+
+    # 通知 shioaji.py 動態重載
+    r.set(f"{REDIS_STREAM_KEY}:cmd", "reload")
+    return jsonify({"success": True})
+
+
+@app.route("/api/subscriptions", methods=["DELETE"])
+def api_subscriptions_delete():
+    """
+    刪除一筆訂閱並即時生效。
+    Body JSON：
+      { "type": "futures"|"stocks", "id": "MXFR1" }
+    """
+    body = request.get_json(silent=True) or {}
+    sub_type = body.get("type", "")
+    sub_id = (body.get("id") or "").strip()
+
+    if sub_type not in ("futures", "stocks"):
+        return jsonify({"error": "type must be 'futures' or 'stocks'"}), 400
+    if not sub_id:
+        return jsonify({"error": "id is required"}), 400
+
+    with _toml_lock:
+        cfg = _read_toml()
+        shioaji_cfg = cfg.get("shioaji", {})
+        found = False
+
+        if sub_type == "futures":
+            futures_cfg: dict = shioaji_cfg.get("futures", {})
+            for category, cat_list in futures_cfg.items():
+                before = len(cat_list)
+                futures_cfg[category] = [item for item in cat_list if item["id"] != sub_id]
+                if len(futures_cfg[category]) < before:
+                    found = True
+        else:
+            stocks_list: list = shioaji_cfg.get("stocks", [])
+            new_list = [item for item in stocks_list if item["id"] != sub_id]
+            if len(new_list) < len(stocks_list):
+                found = True
+            shioaji_cfg["stocks"] = new_list
+
+        if not found:
+            return jsonify({"error": f"{sub_id} not found in {sub_type}"}), 404
+
+        _write_toml(cfg)
+
+    # 通知 shioaji.py 動態重載
+    r.set(f"{REDIS_STREAM_KEY}:cmd", "reload")
     return jsonify({"success": True})
 
 

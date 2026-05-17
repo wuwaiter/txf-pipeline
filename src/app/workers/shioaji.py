@@ -6,6 +6,7 @@ Shioaji API 服務，負責：
 2. 接收即時 Tick 報價並寫入 Redis Stream
 3. 定期檢查 API 使用量並視情況寫入 InfluxDB
 4. 處理手動重連與頁面刷新的指令
+5. 動態重載訂閱清單（reload 指令）
 """
 import time
 import logging
@@ -13,6 +14,7 @@ import os
 import threading
 import datetime
 import shioaji as sj
+import tomli
 from influxdb_client import Point
 
 from app.config import (
@@ -22,6 +24,13 @@ from app.config import (
 )
 from app.services.redis_client import get_redis_client
 from app.services.influx_client import get_write_api
+
+# ── config.toml 路徑（用於動態重載）──────────────────────────────────
+_TOML_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "..", "config.toml")
+
+# ── 目前已訂閱合約的 contract 物件（code -> contract）────────────────
+_subscribed_fop: dict = {}  # 期貨：code -> contract
+_subscribed_stk: dict = {}  # 股票：code -> contract
 
 # ── Logging：將 shioaji 套件 log 輸出導向 logs/ 資料夾 ──────────────
 _LOG_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "logs")
@@ -55,6 +64,8 @@ def perform_login(api):
         return False
 
 def perform_subscribe(api):
+    """初始訂閱所有 config 中定義的合約，並記錄到 _subscribed_fop / _subscribed_stk。"""
+    global _subscribed_fop, _subscribed_stk
     print(">>> Subscribing to contracts...")
     # SHIOAJI_FUTURES: dict[category, list[{id, name}]]
     for category, contracts in SHIOAJI_FUTURES.items():
@@ -66,14 +77,94 @@ def perform_subscribe(api):
             try:
                 contract = future_cat[item["id"]]
                 api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Tick, version=sj.constant.QuoteVersion.v1)
+                _subscribed_fop[item["id"]] = contract
             except Exception as e:
                 print(f">>> [Futures/{category}] Failed to sub {item.get('id')}: {e}")
     for item in SHIOAJI_STOCKS:
         try:
             contract = api.Contracts.Stocks[item["id"]]
             api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Tick, version=sj.constant.QuoteVersion.v1)
+            _subscribed_stk[item["id"]] = contract
         except Exception as e:
             print(f">>> [Stocks] Failed to sub {item.get('id')}: {e}")
+
+
+def reload_subscriptions(api):
+    """
+    動態重載訂閱清單（不重新登入）：
+    - 重新讀取 config.toml
+    - 對移除的合約執行 unsubscribe
+    - 對新增的合約執行 subscribe
+    - 更新 _subscribed_fop / _subscribed_stk
+    """
+    global _subscribed_fop, _subscribed_stk
+    print(">>> [Reload] Reloading subscription list from config.toml...")
+    try:
+        with open(_TOML_PATH, "rb") as f:
+            cfg = tomli.load(f)
+    except Exception as e:
+        print(f">>> [Reload] Failed to read config.toml: {e}")
+        return
+
+    new_futures: dict = cfg.get("shioaji", {}).get("futures", {})
+    new_stocks: list = cfg.get("shioaji", {}).get("stocks", [])
+
+    # 建立新清單的 code set（期貨） + category 對照表
+    new_fop_ids: dict[str, str] = {}  # code -> category
+    for category, contracts in new_futures.items():
+        for item in contracts:
+            new_fop_ids[item["id"]] = category
+
+    new_stk_ids: set[str] = {item["id"] for item in new_stocks}
+
+    # ── 期貨：unsubscribe 已移除的 ──────────────────────────────────
+    for code in list(_subscribed_fop.keys()):
+        if code not in new_fop_ids:
+            try:
+                api.quote.unsubscribe(_subscribed_fop[code], quote_type=sj.constant.QuoteType.Tick, version=sj.constant.QuoteVersion.v1)
+                print(f">>> [Reload] Unsubscribed futures: {code}")
+            except Exception as e:
+                print(f">>> [Reload] Failed to unsub futures {code}: {e}")
+            del _subscribed_fop[code]
+
+    # ── 期貨：subscribe 新增的 ──────────────────────────────────────
+    for code, category in new_fop_ids.items():
+        if code not in _subscribed_fop:
+            try:
+                future_cat = getattr(api.Contracts.Futures, category, None)
+                if future_cat is None:
+                    print(f">>> [Reload] Unknown futures category: {category}")
+                    continue
+                contract = future_cat[code]
+                api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Tick, version=sj.constant.QuoteVersion.v1)
+                _subscribed_fop[code] = contract
+                print(f">>> [Reload] Subscribed futures: {code} ({category})")
+            except Exception as e:
+                print(f">>> [Reload] Failed to sub futures {code}: {e}")
+
+    # ── 股票：unsubscribe 已移除的 ──────────────────────────────────
+    for code in list(_subscribed_stk.keys()):
+        if code not in new_stk_ids:
+            try:
+                api.quote.unsubscribe(_subscribed_stk[code], quote_type=sj.constant.QuoteType.Tick, version=sj.constant.QuoteVersion.v1)
+                print(f">>> [Reload] Unsubscribed stock: {code}")
+            except Exception as e:
+                print(f">>> [Reload] Failed to unsub stock {code}: {e}")
+            del _subscribed_stk[code]
+
+    # ── 股票：subscribe 新增的 ──────────────────────────────────────
+    for item in new_stocks:
+        code = item["id"]
+        if code not in _subscribed_stk:
+            try:
+                contract = api.Contracts.Stocks[code]
+                api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Tick, version=sj.constant.QuoteVersion.v1)
+                _subscribed_stk[code] = contract
+                print(f">>> [Reload] Subscribed stock: {code}")
+            except Exception as e:
+                print(f">>> [Reload] Failed to sub stock {code}: {e}")
+
+    print(">>> [Reload] Done.")
 
 
 def run_shioaji_ingest():
@@ -143,6 +234,10 @@ def run_shioaji_ingest():
             r.delete(f"{REDIS_STREAM_KEY}:cmd")
             print(">>> [Page] Usage refresh requested (no InfluxDB write).")
             check_and_update_status(write_influx=False)
+        elif cmd == b"reload":
+            r.delete(f"{REDIS_STREAM_KEY}:cmd")
+            print(">>> [Manual] Subscription reload requested.")
+            reload_subscriptions(api)
         elif cmd == b"check_usage":
             r.delete(f"{REDIS_STREAM_KEY}:cmd")
             print(">>> [Schedule] Executing usage check (write InfluxDB).")

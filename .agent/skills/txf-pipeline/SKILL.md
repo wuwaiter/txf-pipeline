@@ -112,11 +112,12 @@ txf-pipeline/
 
 ### 指令集（cmd 通道）
 
-每 5 秒輪詢，讀取後須立即 `r.delete(...)` 清除。優先順序：`login` > `check_usage` > `usage`
+每 5 秒輪詢，讀取後須立即 `r.delete(...)` 清除。優先順序：`login` > `reload` > `check_usage` > `usage`
 
 | 指令值 | 觸發來源 | 行為 |
 |---|---|---|
 | `login` | 前端「重新連線」→ `POST /api/reconnect` | 重新 login + subscribe，不寫 InfluxDB |
+| `reload` | 前端訂閱管理 Modal → `POST/DELETE /api/subscriptions` | 動態 diff 訂閱清單（不重新登入），不寫 InfluxDB |
 | `usage` | 頁面開啟 / WebSocket 建立 | 只刷新流量顯示，不寫 InfluxDB |
 | `check_usage` | ScheduleTask 背景排程（每分鐘） | 刷新流量並寫入 InfluxDB monitoring bucket |
 
@@ -239,10 +240,22 @@ Flash 動畫：`.flash-up` → `rgba(239, 68, 68, .3)`；`.flash-dn` → `rgba(3
 | | Toolbar 按鈕 | `0.8rem` | Inter |
 | Stats Bar | Label / Value | `0.68rem` / `0.95rem` | Inter / JetBrains Mono |
 
+### REST API 一覽
+
+| Method | Path | 功能 |
+|---|---|---|
+| `GET` | `/api/streams` | 所有合約最新 tick 快照 |
+| `POST` | `/api/reconnect` | 觸發 shioaji.py 重新 login + subscribe |
+| `GET` | `/api/candles?code=&tf=` | 指定合約 K 線（tf=60/300/3600） |
+| `GET` | `/api/subscriptions` | 讀取 config.toml 訂閱清單 |
+| `POST` | `/api/subscriptions` | 新增一筆訂閱（寫 config.toml + 發 reload cmd） |
+| `DELETE` | `/api/subscriptions` | 刪除一筆訂閱（寫 config.toml + 發 reload cmd） |
+
 ### 前後端資料流
 
 - **歷史 K 線**：`GET /api/candles?code=&tf=`，拉取最近 60 根；不支援的 timeframe 不發請求，等待即時資料。
 - **即時報價**：`/ws` WebSocket，每 0.5 秒推送；`processTicks()` 增量更新 K 線（只重繪 high/low/close）。
+- **訂閱管理**：前端 Sidebar 齒輪按鈕開啟 Modal，透過 `GET/POST/DELETE /api/subscriptions` 管理；`main.py` 寫入 config.toml 後發送 `reload` Redis cmd，`shioaji.py` 執行 diff 訂閱。
 
 ### Lightweight Charts 整合
 
