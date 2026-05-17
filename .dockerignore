@@ -1,0 +1,124 @@
+# =========================
+# Git
+# =========================
+.git
+.gitignore
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+venv/
+.venv/
+env/
+
+.pytest_cache/
+.mypy_cache/
+ruff_cache/
+
+.coverage
+htmlcov/
+
+# =========================
+# Node.js / React
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+.next/
+.nuxt/
+.vite/
+.cache/
+
+# React build output
+dist/
+build/
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+
+*.swp
+*.swo
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+
+# =========================
+# Environment Variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Docker
+# =========================
+docker-compose.override.yml
+
+# =========================
+# Database / Cache / Runtime
+# =========================
+*.db
+*.sqlite
+*.sqlite3
+
+redis-data/
+influxdb-data/
+
+tmp/
+temp/
+
+# =========================
+# Celery
+# =========================
+celerybeat-schedule
+
+# =========================
+# Testing
+# =========================
+coverage/
+.tox/
+
+# =========================
+# Build Artifacts
+# =========================
+*.tar
+*.gz
+*.zip
+
+# =========================
+# Local backup files
+# =========================
+backup/
+backups/
+
+# =========================
+# Jupyter
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# Misc
+# =========================
+*.bak
+*.tmp
+*.old
